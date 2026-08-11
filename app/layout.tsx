@@ -26,7 +26,6 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "오늘 뭐 먹지? | 메뉴 룰렛",
     description: "메뉴 룰렛을 돌리고 내 주변 맛집까지 바로 찾아보세요.",
     metadataBase,
-    icons: { icon: socialImage, shortcut: socialImage },
     openGraph: {
       title: "오늘 뭐 먹지?",
       description: "돌리고, 근처 맛집까지.",
@@ -48,6 +47,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        <link rel="icon" href="/icon.png" type="image/png" sizes="128x128" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>
