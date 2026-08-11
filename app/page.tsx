@@ -42,6 +42,9 @@ const initialMenus: MenuItem[] = [
 ];
 
 const foodEmojis = ["🍜", "🍲", "🍛", "🥘", "🌮", "🍕", "🥪", "🍱"];
+const fastApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+  ?.trim()
+  .replace(/\/+$/, "");
 
 function formatDistance(distanceMeters: number | null) {
   if (distanceMeters === null) return "거리 정보 없음";
@@ -61,7 +64,7 @@ export default function Home() {
   >("idle");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [restaurantStatus, setRestaurantStatus] = useState<
-    "idle" | "loading" | "ready" | "missing-key" | "error"
+    "idle" | "loading" | "ready" | "missing-backend" | "missing-key" | "error"
   >("idle");
   const [restaurantMessage, setRestaurantMessage] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
@@ -153,8 +156,15 @@ export default function Home() {
     requestId: number,
   ) => {
     setRestaurants([]);
-    setRestaurantStatus("loading");
     setRestaurantMessage("");
+
+    if (!fastApiBaseUrl) {
+      setRestaurantStatus("missing-backend");
+      setRestaurantMessage("FastAPI 서버 주소가 아직 설정되지 않았습니다.");
+      return;
+    }
+
+    setRestaurantStatus("loading");
 
     const params = new URLSearchParams({
       menu: menuName,
@@ -163,7 +173,9 @@ export default function Home() {
     });
 
     try {
-      const response = await fetch(`/api/restaurants?${params}`);
+      const response = await fetch(`${fastApiBaseUrl}/api/restaurants?${params}`, {
+        headers: { Accept: "application/json" },
+      });
       const data = (await response.json()) as
         | RestaurantSearchResponse
         | RestaurantSearchError;
@@ -454,6 +466,13 @@ export default function Home() {
                       <strong>백엔드 연결 준비 완료</strong>
                       <p>{restaurantMessage}</p>
                       <code>KAKAO_REST_API_KEY</code>
+                    </div>
+                  )}
+                  {restaurantStatus === "missing-backend" && (
+                    <div className="restaurant-state api-ready">
+                      <strong>FastAPI 연결 대기 중</strong>
+                      <p>{restaurantMessage}</p>
+                      <code>NEXT_PUBLIC_API_BASE_URL</code>
                     </div>
                   )}
                   {restaurantStatus === "error" && (

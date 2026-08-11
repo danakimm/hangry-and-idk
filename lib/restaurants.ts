@@ -24,6 +24,7 @@ export type RestaurantSearchError = {
     code:
       | "INVALID_REQUEST"
       | "KAKAO_API_KEY_MISSING"
+      | "KAKAO_API_TIMEOUT"
       | "KAKAO_API_ERROR"
       | "INTERNAL_ERROR";
     message: string;
