@@ -1,6 +1,11 @@
 "use client";
 
 import { FormEvent, useMemo, useRef, useState } from "react";
+import type {
+  Restaurant,
+  RestaurantSearchError,
+  RestaurantSearchResponse,
+} from "../lib/restaurants";
 
 type MenuItem = {
   id: number;
@@ -38,6 +43,12 @@ const initialMenus: MenuItem[] = [
 
 const foodEmojis = ["🍜", "🍲", "🍛", "🥘", "🌮", "🍕", "🥪", "🍱"];
 
+function formatDistance(distanceMeters: number | null) {
+  if (distanceMeters === null) return "거리 정보 없음";
+  if (distanceMeters < 1_000) return `${distanceMeters}m`;
+  return `${(distanceMeters / 1_000).toFixed(1)}km`;
+}
+
 export default function Home() {
   const [menus, setMenus] = useState<MenuItem[]>(initialMenus);
   const [newMenu, setNewMenu] = useState("");
@@ -48,7 +59,20 @@ export default function Home() {
   const [locationStatus, setLocationStatus] = useState<
     "idle" | "loading" | "ready" | "denied"
   >("idle");
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurantStatus, setRestaurantStatus] = useState<
+    "idle" | "loading" | "ready" | "missing-key" | "error"
+  >("idle");
+  const [restaurantMessage, setRestaurantMessage] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
+  const restaurantRequestIdRef = useRef(0);
+
+  const clearRestaurantSearch = () => {
+    restaurantRequestIdRef.current += 1;
+    setRestaurants([]);
+    setRestaurantStatus("idle");
+    setRestaurantMessage("");
+  };
 
   const sliceAngle = 360 / menus.length;
   const wheelBackground = useMemo(() => {
@@ -72,6 +96,7 @@ export default function Home() {
     setSelected(null);
     setCoordinates(null);
     setLocationStatus("idle");
+    clearRestaurantSearch();
     setIsSpinning(true);
     setRotation(nextRotation);
 
@@ -101,6 +126,7 @@ export default function Home() {
     ]);
     setNewMenu("");
     setSelected(null);
+    clearRestaurantSearch();
   };
 
   const removeMenu = (id: number) => {
@@ -108,6 +134,7 @@ export default function Home() {
     setMenus((current) => current.filter((menu) => menu.id !== id));
     setSelected(null);
     setRotation(0);
+    clearRestaurantSearch();
   };
 
   const resetMenus = () => {
@@ -117,24 +144,81 @@ export default function Home() {
     setRotation(0);
     setCoordinates(null);
     setLocationStatus("idle");
+    clearRestaurantSearch();
+  };
+
+  const searchRestaurants = async (
+    menuName: string,
+    nextCoordinates: Coordinates,
+    requestId: number,
+  ) => {
+    setRestaurants([]);
+    setRestaurantStatus("loading");
+    setRestaurantMessage("");
+
+    const params = new URLSearchParams({
+      menu: menuName,
+      lat: String(nextCoordinates.latitude),
+      lng: String(nextCoordinates.longitude),
+    });
+
+    try {
+      const response = await fetch(`/api/restaurants?${params}`);
+      const data = (await response.json()) as
+        | RestaurantSearchResponse
+        | RestaurantSearchError;
+
+      if (restaurantRequestIdRef.current !== requestId) return;
+
+      if (!response.ok || "error" in data) {
+        const error = "error" in data ? data.error : null;
+        setRestaurantStatus(
+          error?.code === "KAKAO_API_KEY_MISSING" ? "missing-key" : "error",
+        );
+        setRestaurantMessage(error?.message ?? "식당 검색에 실패했습니다.");
+        return;
+      }
+
+      setRestaurants(data.restaurants);
+      setRestaurantStatus("ready");
+    } catch {
+      if (restaurantRequestIdRef.current !== requestId) return;
+      setRestaurantStatus("error");
+      setRestaurantMessage("식당 검색 서버에 연결하지 못했습니다.");
+    }
   };
 
   const requestLocation = () => {
+    if (!selected) return;
+
+    if (coordinates) {
+      const requestId = ++restaurantRequestIdRef.current;
+      void searchRestaurants(selected.name, coordinates, requestId);
+      return;
+    }
+
     if (!navigator.geolocation) {
       setLocationStatus("denied");
       return;
     }
 
+    const requestId = ++restaurantRequestIdRef.current;
     setLocationStatus("loading");
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        setCoordinates({
+        if (restaurantRequestIdRef.current !== requestId) return;
+        const nextCoordinates = {
           latitude: coords.latitude,
           longitude: coords.longitude,
-        });
+        };
+        setCoordinates(nextCoordinates);
         setLocationStatus("ready");
+        void searchRestaurants(selected.name, nextCoordinates, requestId);
       },
-      () => setLocationStatus("denied"),
+      () => {
+        if (restaurantRequestIdRef.current !== requestId) return;
+        setLocationStatus("denied");
+      },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 },
     );
   };
@@ -325,7 +409,7 @@ export default function Home() {
                       </strong>
                       <small>
                         {locationStatus === "loading" && "위치를 확인하고 있어요..."}
-                        {locationStatus === "ready" && "지도 검색에 현재 위치를 반영할게요."}
+                        {locationStatus === "ready" && "현재 위치 기준으로 식당을 검색해요."}
                         {locationStatus === "denied" && "위치 없이도 지도에서 검색할 수 있어요."}
                         {locationStatus === "idle" && "더 가까운 식당을 찾으려면 위치를 알려주세요."}
                       </small>
@@ -334,10 +418,69 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={requestLocation}
-                    disabled={locationStatus === "loading" || locationStatus === "ready"}
+                    disabled={locationStatus === "loading" || restaurantStatus === "loading"}
                   >
-                    {locationStatus === "ready" ? "위치 확인됨" : "내 위치 사용"}
+                    {locationStatus === "loading" && "위치 확인 중"}
+                    {locationStatus !== "loading" && restaurantStatus === "loading" && "검색 중"}
+                    {locationStatus === "ready" && restaurantStatus !== "loading" && "다시 검색"}
+                    {locationStatus !== "loading" &&
+                      locationStatus !== "ready" &&
+                      restaurantStatus !== "loading" &&
+                      "내 위치 사용"}
                   </button>
+                </div>
+
+                <div className="restaurant-results" aria-live="polite">
+                  <div className="restaurant-heading">
+                    <div>
+                      <span>NEARBY RESTAURANTS</span>
+                      <h3>내 주변 식당</h3>
+                    </div>
+                    {restaurantStatus === "ready" && restaurants.length > 0 && (
+                      <small>{restaurants.length}곳</small>
+                    )}
+                  </div>
+
+                  {restaurantStatus === "idle" && (
+                    <p className="restaurant-state">
+                      위치를 허용하면 선택된 메뉴를 파는 가까운 식당을 여기에 보여드려요.
+                    </p>
+                  )}
+                  {restaurantStatus === "loading" && (
+                    <p className="restaurant-state is-loading">가까운 식당을 찾고 있어요...</p>
+                  )}
+                  {restaurantStatus === "missing-key" && (
+                    <div className="restaurant-state api-ready">
+                      <strong>백엔드 연결 준비 완료</strong>
+                      <p>{restaurantMessage}</p>
+                      <code>KAKAO_REST_API_KEY</code>
+                    </div>
+                  )}
+                  {restaurantStatus === "error" && (
+                    <p className="restaurant-state is-error">{restaurantMessage}</p>
+                  )}
+                  {restaurantStatus === "ready" && restaurants.length === 0 && (
+                    <p className="restaurant-state">반경 5km 안에서 검색 결과를 찾지 못했어요.</p>
+                  )}
+                  {restaurantStatus === "ready" && restaurants.length > 0 && (
+                    <ol className="restaurant-list">
+                      {restaurants.map((restaurant, index) => (
+                        <li key={restaurant.id}>
+                          <span className="restaurant-rank">{String(index + 1).padStart(2, "0")}</span>
+                          <div>
+                            <div className="restaurant-name-row">
+                              <strong>{restaurant.name}</strong>
+                              <small>{formatDistance(restaurant.distanceMeters)}</small>
+                            </div>
+                            <p>{restaurant.roadAddress || restaurant.address}</p>
+                          </div>
+                          <a href={restaurant.placeUrl} target="_blank" rel="noreferrer">
+                            상세 ↗
+                          </a>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
                 </div>
 
                 <div className="map-links" aria-label={`${selected.name} 식당 지도 검색`}>
