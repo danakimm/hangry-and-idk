@@ -539,7 +539,7 @@ main {
 }
 
 .result-card.has-result {
-  grid-template-columns: minmax(230px, 0.66fr) 1.34fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   place-items: stretch;
 }
 
