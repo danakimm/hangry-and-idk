@@ -52,6 +52,11 @@ function formatDistance(distanceMeters: number | null) {
   return `${(distanceMeters / 1_000).toFixed(1)}km`;
 }
 
+function getRandomIndex(length: number) {
+  const values = crypto.getRandomValues(new Uint32Array(1));
+  return Math.floor((values[0] / 2 ** 32) * length);
+}
+
 export default function Home() {
   const [menus, setMenus] = useState<MenuItem[]>(initialMenus);
   const [newMenu, setNewMenu] = useState("");
@@ -90,7 +95,7 @@ export default function Home() {
   const spinWheel = () => {
     if (isSpinning || menus.length < 2) return;
 
-    const chosenIndex = Math.floor(Math.random() * menus.length);
+    const chosenIndex = getRandomIndex(menus.length);
     const currentAngle = ((rotation % 360) + 360) % 360;
     const alignment =
       ((360 - currentAngle - chosenIndex * sliceAngle) % 360 + 360) % 360;
