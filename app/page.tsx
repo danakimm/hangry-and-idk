@@ -235,28 +235,6 @@ export default function Home() {
     );
   };
 
-  const getMapUrl = (provider: "naver" | "kakao" | "google") => {
-    if (!selected) return "#";
-    const query = `${selected.name} 맛집`;
-    const encoded = encodeURIComponent(query);
-
-    if (provider === "naver") {
-      const center = coordinates
-        ? `?c=${coordinates.longitude},${coordinates.latitude},15,0,0,0,dh`
-        : "";
-      return `https://map.naver.com/p/search/${encoded}${center}`;
-    }
-
-    if (provider === "kakao") {
-      return `https://map.kakao.com/link/search/${encoded}`;
-    }
-
-    if (coordinates) {
-      return `https://www.google.com/maps/search/${encoded}/@${coordinates.latitude},${coordinates.longitude},15z`;
-    }
-    return `https://www.google.com/maps/search/?api=1&query=${encoded}`;
-  };
-
   return (
     <main>
       <header className="site-header">
@@ -502,23 +480,6 @@ export default function Home() {
                   )}
                 </div>
 
-                <div className="map-links" aria-label={`${selected.name} 식당 지도 검색`}>
-                  <a href={getMapUrl("naver")} target="_blank" rel="noreferrer">
-                    <span className="map-logo naver">N</span>
-                    <span><b>네이버지도</b><small>{selected.name} 맛집 찾기</small></span>
-                    <i aria-hidden="true">↗</i>
-                  </a>
-                  <a href={getMapUrl("kakao")} target="_blank" rel="noreferrer">
-                    <span className="map-logo kakao">K</span>
-                    <span><b>카카오맵</b><small>{selected.name} 맛집 찾기</small></span>
-                    <i aria-hidden="true">↗</i>
-                  </a>
-                  <a href={getMapUrl("google")} target="_blank" rel="noreferrer">
-                    <span className="map-logo google">G</span>
-                    <span><b>구글지도</b><small>{selected.name} 맛집 찾기</small></span>
-                    <i aria-hidden="true">↗</i>
-                  </a>
-                </div>
               </div>
             </>
           ) : (
