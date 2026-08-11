@@ -41,7 +41,8 @@ const initialMenus: MenuItem[] = [
   { id: 8, name: "샐러드", emoji: "🥗", color: palette[7] },
 ];
 
-const foodEmojis = ["🍜", "🍲", "🍛", "🥘", "🌮", "🍕", "🥪", "🍱"];
+const defaultMenuEmoji = "🍽️";
+const customMenuEmojis = ["🍽️", "🍜", "🍲", "🍛", "🥘", "🌮", "🍕", "🥪", "🍱", "🥩"];
 const fastApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
   ?.trim()
   .replace(/\/+$/, "");
@@ -60,6 +61,8 @@ function getRandomIndex(length: number) {
 export default function Home() {
   const [menus, setMenus] = useState<MenuItem[]>(initialMenus);
   const [newMenu, setNewMenu] = useState("");
+  const [newMenuEmoji, setNewMenuEmoji] = useState(defaultMenuEmoji);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [selected, setSelected] = useState<MenuItem | null>(null);
@@ -128,11 +131,13 @@ export default function Home() {
       {
         id: Date.now(),
         name,
-        emoji: foodEmojis[index % foodEmojis.length],
+        emoji: newMenuEmoji,
         color: palette[index % palette.length],
       },
     ]);
     setNewMenu("");
+    setNewMenuEmoji(defaultMenuEmoji);
+    setIsEmojiPickerOpen(false);
     setSelected(null);
     clearRestaurantSearch();
   };
@@ -152,6 +157,8 @@ export default function Home() {
     setRotation(0);
     setCoordinates(null);
     setLocationStatus("idle");
+    setNewMenuEmoji(defaultMenuEmoji);
+    setIsEmojiPickerOpen(false);
     clearRestaurantSearch();
   };
 
@@ -352,7 +359,18 @@ export default function Home() {
 
           <form className="menu-form" onSubmit={addMenu}>
             <label htmlFor="menu-input">먹고 싶은 메뉴 직접 추가</label>
-            <div>
+            <div className="menu-input-row">
+              <button
+                type="button"
+                className="emoji-trigger"
+                onClick={() => setIsEmojiPickerOpen((current) => !current)}
+                disabled={menus.length >= 10 || isSpinning}
+                aria-haspopup="listbox"
+                aria-expanded={isEmojiPickerOpen}
+                aria-label={`메뉴 아이콘 ${newMenuEmoji}, 변경`}
+              >
+                {newMenuEmoji}
+              </button>
               <input
                 id="menu-input"
                 value={newMenu}
@@ -363,12 +381,32 @@ export default function Home() {
               />
               <button
                 type="submit"
+                className="add-menu-button"
                 disabled={!newMenu.trim() || menus.length >= 10 || isSpinning}
                 aria-label="메뉴 추가"
               >
                 +
               </button>
             </div>
+            {isEmojiPickerOpen && (
+              <div className="emoji-picker" role="listbox" aria-label="메뉴 아이콘 선택">
+                {customMenuEmojis.map((emoji) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={newMenuEmoji === emoji}
+                    aria-label={`${emoji} 아이콘 선택`}
+                    key={emoji}
+                    onClick={() => {
+                      setNewMenuEmoji(emoji);
+                      setIsEmojiPickerOpen(false);
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
           </form>
         </aside>
       </section>

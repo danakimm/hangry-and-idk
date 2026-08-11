@@ -411,7 +411,7 @@ main {
   font-weight: 800;
 }
 
-.menu-form > div {
+.menu-input-row {
   display: flex;
 }
 
@@ -421,6 +421,7 @@ main {
   height: 48px;
   padding: 0 14px;
   border: 2px solid var(--ink);
+  border-left: 0;
   border-right: 0;
   border-radius: 0;
   background: var(--paper-light);
@@ -432,16 +433,53 @@ main {
   color: rgba(23, 33, 29, 0.42);
 }
 
-.menu-form button {
+.emoji-trigger,
+.add-menu-button {
   flex: 0 0 48px;
   height: 48px;
   border: 2px solid var(--ink);
   border-radius: 0;
-  background: var(--yellow);
   color: var(--ink);
   font-size: 26px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.emoji-trigger {
+  background: var(--paper-light);
+  font-size: 22px;
+}
+
+.emoji-trigger[aria-expanded="true"],
+.add-menu-button {
+  background: var(--yellow);
+}
+
+.emoji-picker {
+  margin-top: 8px;
+  padding: 8px;
+  border: 2px solid var(--ink);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  background: var(--paper-light);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.emoji-picker button {
+  min-width: 0;
+  height: 38px;
+  padding: 0;
+  border: 1.5px solid transparent;
+  background: transparent;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.emoji-picker button:hover,
+.emoji-picker button[aria-selected="true"] {
+  border-color: var(--ink);
+  background: var(--yellow);
 }
 
 .result-section {
