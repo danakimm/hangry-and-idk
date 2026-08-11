@@ -6,6 +6,7 @@ import type {
   RestaurantSearchError,
   RestaurantSearchResponse,
 } from "../lib/restaurants";
+import KakaoRestaurantMap from "./KakaoRestaurantMap";
 
 type MenuItem = {
   id: number;
@@ -427,10 +428,25 @@ export default function Home() {
         <div className={`result-card ${selected ? "has-result" : ""}`}>
           {selected ? (
             <>
-              <div className="selected-food" style={{ backgroundColor: selected.color }}>
-                <span>{selected.emoji}</span>
-                <small>TODAY&apos;S PICK</small>
-                <strong>{selected.name}</strong>
+              <div
+                className={`selected-food ${coordinates ? "has-map" : ""}`}
+                style={coordinates ? undefined : { backgroundColor: selected.color }}
+              >
+                {coordinates ? (
+                  <KakaoRestaurantMap
+                    coordinates={coordinates}
+                    restaurants={restaurants}
+                    selectedColor={selected.color}
+                    selectedEmoji={selected.emoji}
+                    selectedName={selected.name}
+                  />
+                ) : (
+                  <>
+                    <span>{selected.emoji}</span>
+                    <small>TODAY&apos;S PICK</small>
+                    <strong>{selected.name}</strong>
+                  </>
+                )}
               </div>
               <div className="map-search">
                 <div className="location-row">

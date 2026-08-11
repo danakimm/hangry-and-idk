@@ -600,6 +600,133 @@ main {
   letter-spacing: -0.07em;
 }
 
+.selected-food.has-map {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.kakao-map-shell,
+.kakao-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.kakao-map-shell {
+  min-height: 320px;
+}
+
+.kakao-map-canvas {
+  background-color: #e8e3d7;
+  background-image:
+    linear-gradient(rgba(23, 33, 29, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 33, 29, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.kakao-map-state {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: rgba(244, 235, 216, 0.92);
+}
+
+.kakao-map-state p,
+.kakao-map-state strong {
+  margin: 0;
+  font-size: 13px;
+}
+
+.kakao-map-state code {
+  padding: 5px 7px;
+  border: 1px solid var(--ink);
+  background: var(--paper-light);
+  font-size: 10px;
+}
+
+.map-pick-badge {
+  position: absolute;
+  z-index: 6;
+  left: 18px;
+  bottom: 18px;
+  max-width: calc(100% - 36px);
+  padding: 10px 13px;
+  border: 2px solid var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.map-pick-badge > span {
+  font-size: 27px;
+}
+
+.map-pick-badge small,
+.map-pick-badge strong {
+  display: block;
+}
+
+.map-pick-badge small {
+  margin: 0 0 2px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.map-pick-badge strong {
+  overflow: hidden;
+  font-size: 17px;
+  letter-spacing: -0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.restaurant-map-marker,
+.current-location-marker {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 7px;
+  border: 2px solid var(--ink);
+  border-radius: 18px 18px 18px 4px;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 2px 2px 0 rgba(23, 33, 29, 0.72);
+  transform: translateY(-4px);
+}
+
+.restaurant-map-marker {
+  background: var(--green);
+}
+
+.restaurant-map-marker:hover {
+  z-index: 2;
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.current-location-marker {
+  min-width: 48px;
+  background: var(--red);
+}
+
 .map-search {
   padding: 26px 30px;
 }
