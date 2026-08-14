@@ -12,9 +12,12 @@ const TIMEOUT_MS = 5_000;
 
 type ErrorCode =
   | "INVALID_REQUEST"
+  | "RATE_LIMITED"
   | "KAKAO_API_KEY_MISSING"
   | "KAKAO_API_TIMEOUT"
   | "KAKAO_API_ERROR";
+
+type RateLimiter = { limit(opts: { key: string }): Promise<{ success: boolean }> };
 
 function apiError(status: number, code: ErrorCode, message: string) {
   return Response.json({ error: { code, message } }, { status });
@@ -38,11 +41,30 @@ type KakaoPayload = {
   documents: KakaoPlace[];
 };
 
+const CACHE_TTL_SECONDS = 300;
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
+
+  // IP당 60초에 30회 초과 시 차단 (좌표 바꿔가며 때리는 남용까지 소스에서 차단)
+  const limiter = (env as { RATE_LIMITER?: RateLimiter }).RATE_LIMITER;
+  if (limiter) {
+    const clientIp = request.headers.get("cf-connecting-ip") ?? "unknown";
+    const { success } = await limiter.limit({ key: clientIp });
+    if (!success) {
+      return apiError(429, "RATE_LIMITED", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+    }
+  }
+
   const menu = url.searchParams.get("menu")?.trim() ?? "";
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
+
+  // 같은 menu+lat+lng는 카카오 재호출 없이 엣지 캐시에서 응답 → 반복/남용 요청 흡수
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString());
+  const cached = await cache.match(cacheKey);
+  if (cached) return new Response(cached.body, cached);
 
   if (
     !menu ||
@@ -138,7 +160,9 @@ export async function GET(request: Request) {
     },
   };
 
-  return Response.json(body, {
-    headers: { "Cache-Control": "no-store" },
+  const response = Response.json(body, {
+    headers: { "Cache-Control": `public, max-age=${CACHE_TTL_SECONDS}` },
   });
+  await cache.put(cacheKey, response.clone());
+  return response;
 }
