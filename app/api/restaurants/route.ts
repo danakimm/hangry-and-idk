@@ -9,6 +9,8 @@ const KAKAO_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
 const DEFAULT_RADIUS_METERS = 5_000;
 const RESULT_SIZE = 10;
 const TIMEOUT_MS = 5_000;
+// 좌표 캐시 격자: 1e4 = 소수 4자리(~11m)
+const COORD_CACHE_SCALE = 10_000;
 
 type ErrorCode =
   | "INVALID_REQUEST"
@@ -60,12 +62,6 @@ export async function GET(request: Request) {
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
 
-  // 같은 menu+lat+lng는 카카오 재호출 없이 엣지 캐시에서 응답 → 반복/남용 요청 흡수
-  const cache = caches.default;
-  const cacheKey = new Request(url.toString());
-  const cached = await cache.match(cacheKey);
-  if (cached) return new Response(cached.body, cached);
-
   if (
     !menu ||
     menu.length > 50 ||
@@ -83,6 +79,18 @@ export async function GET(request: Request) {
     );
   }
 
+  // 좌표를 소수 4자리(~11m)로 정규화 → 근접 사용자끼리 캐시 공유
+  const nlat = Math.round(lat * COORD_CACHE_SCALE) / COORD_CACHE_SCALE;
+  const nlng = Math.round(lng * COORD_CACHE_SCALE) / COORD_CACHE_SCALE;
+
+  // 같은 menu+좌표(정규화)는 카카오 재호출 없이 엣지 캐시에서 응답 → 반복/남용 요청 흡수
+  const cache = caches.default;
+  const cacheKey = new Request(
+    `${url.origin}${url.pathname}?menu=${encodeURIComponent(menu)}&lat=${nlat}&lng=${nlng}`,
+  );
+  const cached = await cache.match(cacheKey);
+  if (cached) return new Response(cached.body, cached);
+
   const apiKey = (env as { KAKAO_REST_API_KEY?: string }).KAKAO_REST_API_KEY?.trim();
   if (!apiKey) {
     return apiError(
@@ -95,8 +103,8 @@ export async function GET(request: Request) {
   const params = new URLSearchParams({
     query: `${menu} 맛집`,
     category_group_code: "FD6",
-    x: String(lng),
-    y: String(lat),
+    x: String(nlng),
+    y: String(nlat),
     radius: String(DEFAULT_RADIUS_METERS),
     sort: "distance",
     size: String(RESULT_SIZE),
