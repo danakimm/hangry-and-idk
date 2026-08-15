@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
+    "firebase": "^12.17.1",
+    "jose": "^6.2.9",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
