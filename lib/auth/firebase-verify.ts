@@ -1,4 +1,9 @@
-import { importSPKI, jwtVerify, type JWTPayload } from "jose";
+import {
+  decodeProtectedHeader,
+  importSPKI,
+  jwtVerify,
+  type JWTPayload,
+} from "jose";
 import type { TokenVerificationResult } from "../auth/types";
 
 const FIREBASE_PUBLIC_KEYS_URL =
@@ -6,6 +11,7 @@ const FIREBASE_PUBLIC_KEYS_URL =
 
 const ALGORITHM = "RS256";
 const CLOCK_SKEW_TOLERANCE_SECONDS = 300;
+const MAX_AUTH_AGE_SECONDS = 5 * 60;
 
 type CachedKeys = {
   keys: Map<string, CryptoKey>;
@@ -50,14 +56,20 @@ function isFirebasePayload(
   payload: JWTPayload,
 ): payload is JWTPayload & {
   sub: string;
+  iat: number;
+  auth_time: number;
   firebase: { sign_in_provider: string };
 } {
   return (
     typeof payload.sub === "string" &&
     payload.sub.length > 0 &&
+    payload.sub.length <= 128 &&
+    typeof payload.iat === "number" &&
+    typeof payload.auth_time === "number" &&
     typeof payload.firebase === "object" &&
     payload.firebase !== null &&
-    "sign_in_provider" in payload.firebase
+    "sign_in_provider" in payload.firebase &&
+    typeof payload.firebase.sign_in_provider === "string"
   );
 }
 
@@ -67,9 +79,7 @@ export async function verifyTokenWithKeys(
   keys: Map<string, CryptoKey>,
 ): Promise<TokenVerificationResult> {
   try {
-    const header = JSON.parse(
-      Buffer.from(idToken.split(".")[0], "base64url").toString(),
-    );
+    const header = decodeProtectedHeader(idToken);
 
     if (header.alg !== ALGORITHM) {
       return { ok: false, error: `Unsupported algorithm: ${header.alg}` };
@@ -106,6 +116,10 @@ export async function verifyTokenWithKeys(
 
     if (!isFirebasePayload(payload)) {
       return { ok: false, error: "Missing required Firebase claims" };
+    }
+
+    if (payload.auth_time < now - MAX_AUTH_AGE_SECONDS) {
+      return { ok: false, error: "Authentication is too old" };
     }
 
     if (payload.firebase.sign_in_provider !== "google.com") {

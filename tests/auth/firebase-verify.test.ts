@@ -111,6 +111,25 @@ test("rejects token with future auth_time", async () => {
   }
 });
 
+test("rejects token with stale auth_time", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const token = await createMockFirebaseToken({ auth_time: now - 301 });
+  const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error, /Authentication is too old/);
+  }
+});
+
+test("rejects sub claim longer than a Firebase UID", async () => {
+  const token = await createMockFirebaseToken({ sub: "u".repeat(129) });
+  const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error, /Missing required Firebase claims/);
+  }
+});
+
 test("rejects token with missing sub claim", async () => {
   const keys = await import("./helpers.ts").then((m) => m.generateTestKeys());
   const { SignJWT } = await import("jose");

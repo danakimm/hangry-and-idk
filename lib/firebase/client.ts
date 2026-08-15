@@ -10,6 +10,8 @@ import {
   onAuthStateChanged,
   type User,
   signOut,
+  inMemoryPersistence,
+  setPersistence,
 } from "firebase/auth";
 import { getFirebaseConfig } from "./config";
 
@@ -29,8 +31,10 @@ export function getFirebaseAuth(): Auth {
 }
 
 export async function signInWithGoogle(): Promise<UserCredential> {
+  const auth = getFirebaseAuth();
+  await setPersistence(auth, inMemoryPersistence);
   const provider = new GoogleAuthProvider();
-  return signInWithPopup(getFirebaseAuth(), provider);
+  return signInWithPopup(auth, provider);
 }
 
 export function subscribeToAuthState(

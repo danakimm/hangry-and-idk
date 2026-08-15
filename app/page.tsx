@@ -7,6 +7,7 @@ import type {
   RestaurantSearchResponse,
 } from "../lib/restaurants";
 import KakaoRestaurantMap from "./KakaoRestaurantMap";
+import UserMenu from "./UserMenu";
 
 type MenuItem = {
   id: number;
@@ -245,6 +246,7 @@ export default function Home() {
           <span className="brand-mark" aria-hidden="true">?</span>
           <span>오늘 뭐 먹지?</span>
         </a>
+        <UserMenu />
         <div className="header-note">
           <span className="status-dot" aria-hidden="true" />
           결정 장애 구조대, 영업 중
