@@ -6,7 +6,10 @@ import {
   signSession,
   verifySession,
 } from "./session.ts";
-import type { TokenVerificationResult } from "./types.ts";
+import type {
+  SessionPayload,
+  TokenVerificationResult,
+} from "./types.ts";
 
 export type AuthRuntimeEnv = {
   APP_ORIGIN?: string;
@@ -184,6 +187,20 @@ export async function getSessionResponse(
     200,
     { Vary: "Cookie" },
   );
+}
+
+export async function readSession(
+  request: Request,
+  runtimeEnv: AuthRuntimeEnv,
+): Promise<SessionPayload | null> {
+  if (!runtimeEnv.AUTH_SESSION_SECRET) return null;
+
+  const cookieHeader = request.headers.get("Cookie") ?? "";
+  const cookieName = getSessionCookieName();
+  const match = cookieHeader.match(new RegExp(`${cookieName}=([^;]+)`));
+  if (!match) return null;
+
+  return verifySession(match[1], runtimeEnv.AUTH_SESSION_SECRET);
 }
 
 export function createLogoutResponse(

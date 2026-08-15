@@ -1,11 +1,10 @@
 "use client";
 
 import { FormEvent, useMemo, useRef, useState } from "react";
-import type {
-  Restaurant,
-  RestaurantSearchError,
-  RestaurantSearchResponse,
-} from "../lib/restaurants";
+import {
+  parseRestaurantSearchResponse,
+  type Restaurant,
+} from "@/lib/restaurants";
 import KakaoRestaurantMap from "./KakaoRestaurantMap";
 import UserMenu from "./UserMenu";
 
@@ -71,7 +70,7 @@ export default function Home() {
   >("idle");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [restaurantStatus, setRestaurantStatus] = useState<
-    "idle" | "loading" | "ready" | "missing-key" | "error"
+    "idle" | "loading" | "ready" | "missing-key" | "unauthorized" | "rate-limited" | "error"
   >("idle");
   const [restaurantMessage, setRestaurantMessage] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
@@ -178,24 +177,20 @@ export default function Home() {
 
     try {
       const response = await fetch(`/api/restaurants?${params}`, {
+        cache: "no-store",
         headers: { Accept: "application/json" },
       });
-      const data = (await response.json()) as
-        | RestaurantSearchResponse
-        | RestaurantSearchError;
+      const result = await parseRestaurantSearchResponse(response);
 
       if (restaurantRequestIdRef.current !== requestId) return;
 
-      if (!response.ok || "error" in data) {
-        const error = "error" in data ? data.error : null;
-        setRestaurantStatus(
-          error?.code === "KAKAO_API_KEY_MISSING" ? "missing-key" : "error",
-        );
-        setRestaurantMessage(error?.message ?? "식당 검색에 실패했습니다.");
+      if (!result.ok) {
+        setRestaurantStatus(result.status);
+        setRestaurantMessage(result.message);
         return;
       }
 
-      setRestaurants(data.restaurants);
+      setRestaurants(result.data.restaurants);
       setRestaurantStatus("ready");
     } catch {
       if (restaurantRequestIdRef.current !== requestId) return;
@@ -495,6 +490,18 @@ export default function Home() {
                       <strong>백엔드 연결 준비 완료</strong>
                       <p>{restaurantMessage}</p>
                       <code>KAKAO_REST_API_KEY</code>
+                    </div>
+                  )}
+                  {restaurantStatus === "unauthorized" && (
+                    <div className="restaurant-state is-error">
+                      <strong>로그인이 필요합니다</strong>
+                      <p>{restaurantMessage}</p>
+                    </div>
+                  )}
+                  {restaurantStatus === "rate-limited" && (
+                    <div className="restaurant-state is-error">
+                      <strong>요청이 너무 많습니다</strong>
+                      <p>{restaurantMessage}</p>
                     </div>
                   )}
                   {restaurantStatus === "error" && (
