@@ -1,6 +1,6 @@
 import {
   decodeProtectedHeader,
-  importSPKI,
+  importX509,
   jwtVerify,
   type JWTPayload,
 } from "jose";
@@ -44,7 +44,7 @@ async function fetchPublicKeys(): Promise<Map<string, CryptoKey>> {
   const keys = new Map<string, CryptoKey>();
 
   for (const [kid, pem] of Object.entries(json)) {
-    const key = await importSPKI(pem, ALGORITHM);
+    const key = await importX509(pem, ALGORITHM);
     keys.set(kid, key);
   }
 
@@ -146,8 +146,14 @@ export async function verifyFirebaseToken(
   idToken: string,
   projectId: string,
 ): Promise<TokenVerificationResult> {
-  const keys = await fetchPublicKeys();
-  return verifyTokenWithKeys(idToken, projectId, keys);
+  try {
+    const keys = await fetchPublicKeys();
+    return verifyTokenWithKeys(idToken, projectId, keys);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "공개키 조회에 실패했습니다.";
+    return { ok: false, error: message };
+  }
 }
 
 export function resetKeyCache(): void {
