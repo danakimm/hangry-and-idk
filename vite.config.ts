@@ -14,6 +14,15 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  // 배포는 원격 설정을 이 config로 덮어씀 → 커스텀 도메인/워커dev차단/vars를
+  // 여기 두어야 대시보드에서 안 날아감 (source of truth = 코드)
+  workers_dev: false,
+  preview_urls: false,
+  routes: [{ pattern: "hangry-and-idk.site", custom_domain: true }],
+  vars: {
+    APP_ORIGIN: "https://hangry-and-idk.site",
+    FIREBASE_PROJECT_ID: "hangry-and-idk",
+  },
   ratelimits: [
     {
       name: "RATE_LIMITER",
