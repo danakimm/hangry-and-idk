@@ -119,7 +119,7 @@ npm run dev
 
 ```bash
 npm run lint
-node --test tests/auth/*.test.ts tests/restaurants-*.test.ts
+npm test
 npm run build
 ```
 
@@ -133,8 +133,6 @@ npm run build
 - Edge 캐시, Kakao timeout/error 회귀
 - WAF 비JSON 오류 응답 처리
 
-현재 `npm test`는 이전 Sites 렌더링 테스트를 실행하는 기존 스크립트입니다. 전체 테스트 스크립트가 정리되기 전까지는 위 명령을 사용합니다.
-
 ## 배포
 
 Wrangler에 로그인돼 있는지 확인합니다.
@@ -143,10 +141,10 @@ Wrangler에 로그인돼 있는지 확인합니다.
 npx wrangler whoami
 ```
 
-빌드가 성공하면 Cloudflare Workers에 배포합니다.
+Cloudflare Workers에 빌드하고 배포합니다.
 
 ```bash
-npm run build && npx wrangler deploy
+npm run deploy
 ```
 
 현재 Worker 설정은 `hangry-and-idk.site` 커스텀 도메인에 직접 배포되므로 별도 staging 환경 없이 운영 사이트가 갱신됩니다.
@@ -174,9 +172,9 @@ npm run build && npx wrangler deploy
 
 - `npm run dev`: 로컬 개발 서버
 - `npm run build`: vinext 프로덕션 빌드
-- `npm run deploy`: 프로젝트에 등록된 배포 스크립트
+- `npm run deploy`: 빌드 후 Cloudflare Workers 운영 환경에 배포
+- `npm test`: 인증·세션·식당 검색 테스트
 - `npm run lint`: ESLint
-- `npm run db:generate`: Drizzle 마이그레이션 생성
 
 ## 관련 문서
 
