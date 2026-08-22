@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
-import type { SessionPayload } from "./types";
+import type { SessionPayload } from "./types.server.ts";
 
 const SESSION_COOKIE_NAME = "omuo_session";
 const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;

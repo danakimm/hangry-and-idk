@@ -36,6 +36,80 @@ const eslintConfig = defineConfig([
       },
     },
   },
+  {
+    files: ["features/**/client/**", "app/**/*.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/server/*", "**/*.server", "**/*.server.*"],
+              message: "Client code must not import server modules.",
+            },
+            {
+              group: ["cloudflare:workers"],
+              message: "Client code must not import Cloudflare Worker modules.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/server/]",
+          message: "Client code must not dynamically import server modules.",
+        },
+        {
+          selector: "ImportExpression[source.value=/cloudflare:workers/]",
+          message: "Client code must not dynamically import Cloudflare Worker modules.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["features/**/shared/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/client/**", "**/*.client", "**/*.client.*"],
+              message: "Shared code must not import client modules.",
+            },
+            {
+              group: ["**/server/**", "**/*.server", "**/*.server.*"],
+              message: "Shared code must not import server modules.",
+            },
+            {
+              group: ["cloudflare:workers"],
+              message: "Shared code must not import Cloudflare Worker modules.",
+            },
+            {
+              group: ["react", "react/*"],
+              message: "Shared code must not import React.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/server/]",
+          message: "Shared code must not dynamically import server modules.",
+        },
+        {
+          selector: "ImportExpression[source.value=/client/]",
+          message: "Shared code must not dynamically import client modules.",
+        },
+        {
+          selector: "ImportExpression[source.value=/cloudflare:workers/]",
+          message: "Shared code must not dynamically import Cloudflare Worker modules.",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

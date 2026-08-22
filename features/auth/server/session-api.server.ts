@@ -1,15 +1,20 @@
-import { verifyFirebaseToken } from "./firebase-verify.ts";
+import { verifyFirebaseToken } from "./firebase-verify.server.ts";
 import {
   buildLogoutCookie,
   buildSessionCookie,
   getSessionCookieName,
   signSession,
   verifySession,
-} from "./session.ts";
+} from "./session.server.ts";
 import type {
   SessionPayload,
   TokenVerificationResult,
-} from "./types.ts";
+} from "./types.server.ts";
+import type {
+  AuthSessionResponse,
+  AuthSuccessResponse,
+} from "../shared/contract.ts";
+import { json } from "../../../server/http/json.server.ts";
 
 export type AuthRuntimeEnv = {
   APP_ORIGIN?: string;
@@ -21,22 +26,6 @@ type VerifyFirebaseToken = (
   idToken: string,
   projectId: string,
 ) => Promise<TokenVerificationResult>;
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store",
-  Pragma: "no-cache",
-};
-
-function json(
-  body: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
-  return Response.json(body, {
-    status,
-    headers: { ...NO_STORE_HEADERS, ...headers },
-  });
-}
 
 function validateOrigin(
   request: Request,
@@ -139,9 +128,10 @@ export async function createFirebaseSessionResponse(
     runtimeEnv.AUTH_SESSION_SECRET,
   );
   const secure = appOrigin.startsWith("https://");
+  const body: AuthSuccessResponse = { ok: true };
 
   return json(
-    { ok: true },
+    body,
     200,
     { "Set-Cookie": buildSessionCookie(sessionToken, secure) },
   );
@@ -168,25 +158,23 @@ export async function getSessionResponse(
   const cookieName = getSessionCookieName();
   const match = cookieHeader.match(new RegExp(`${cookieName}=([^;]+)`));
   if (!match) {
-    return json({ user: null }, 200, { Vary: "Cookie" });
+    const body: AuthSessionResponse = { user: null };
+    return json(body, 200, { Vary: "Cookie" });
   }
 
   const session = await verifySession(match[1], runtimeEnv.AUTH_SESSION_SECRET);
   if (!session) {
-    return json({ user: null }, 200, { Vary: "Cookie" });
+    const body: AuthSessionResponse = { user: null };
+    return json(body, 200, { Vary: "Cookie" });
   }
 
-  return json(
-    {
-      user: {
-        uid: session.subject,
-        email: session.email ?? null,
-        name: session.name ?? null,
-      },
+  const body: AuthSessionResponse = {
+    user: {
+      email: session.email ?? null,
+      name: session.name ?? null,
     },
-    200,
-    { Vary: "Cookie" },
-  );
+  };
+  return json(body, 200, { Vary: "Cookie" });
 }
 
 export async function readSession(
@@ -211,8 +199,9 @@ export function createLogoutResponse(
   if (originError) return originError;
 
   const secure = runtimeEnv.APP_ORIGIN!.startsWith("https://");
+  const body: AuthSuccessResponse = { ok: true };
   return json(
-    { ok: true },
+    body,
     200,
     { "Set-Cookie": buildLogoutCookie(secure) },
   );

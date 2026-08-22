@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { verifyFirebaseToken, resetKeyCache } from "../../lib/auth/firebase-verify.ts";
+import { verifyFirebaseToken, resetKeyCache } from "../../features/auth/server/firebase-verify.server.ts";
 import {
   createMockFirebaseToken,
   getTestKeysMap,
@@ -23,7 +23,7 @@ test.afterEach(() => {
 
 test("accepts a valid Firebase token", async () => {
   const token = await createMockFirebaseToken();
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.deepStrictEqual(result, {
     ok: true,
@@ -38,7 +38,7 @@ test("extracts email and name claims", async () => {
     email: "user@example.com",
     name: "Test User",
   });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.deepStrictEqual(result, {
     ok: true,
@@ -65,7 +65,7 @@ test("rejects token with wrong algorithm", async () => {
     .setProtectedHeader({ alg: "HS256", kid: "test-kid-001" })
     .sign(hmacKey);
 
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -75,7 +75,7 @@ test("rejects token with wrong algorithm", async () => {
 
 test("rejects token with unknown kid", async () => {
   const token = await createMockFirebaseToken({ kid: "unknown-kid" });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -86,14 +86,14 @@ test("rejects token with unknown kid", async () => {
 test("rejects expired token", async () => {
   const now = Math.floor(Date.now() / 1000);
   const token = await createMockFirebaseToken({ exp: now - 100 });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
 });
 
 test("rejects token with wrong audience", async () => {
   const token = await createMockFirebaseToken({ aud: "wrong-project" });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
 });
@@ -102,7 +102,7 @@ test("rejects token with wrong issuer", async () => {
   const token = await createMockFirebaseToken({
     iss: "https://securetoken.google.com/wrong-project",
   });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
 });
@@ -110,7 +110,7 @@ test("rejects token with wrong issuer", async () => {
 test("rejects token with future iat", async () => {
   const now = Math.floor(Date.now() / 1000);
   const token = await createMockFirebaseToken({ iat: now + 600 });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -121,7 +121,7 @@ test("rejects token with future iat", async () => {
 test("rejects token with future auth_time", async () => {
   const now = Math.floor(Date.now() / 1000);
   const token = await createMockFirebaseToken({ auth_time: now + 600 });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -132,7 +132,7 @@ test("rejects token with future auth_time", async () => {
 test("rejects token with stale auth_time", async () => {
   const now = Math.floor(Date.now() / 1000);
   const token = await createMockFirebaseToken({ auth_time: now - 301 });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -142,7 +142,7 @@ test("rejects token with stale auth_time", async () => {
 
 test("rejects sub claim longer than a Firebase UID", async () => {
   const token = await createMockFirebaseToken({ sub: "u".repeat(129) });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -166,7 +166,7 @@ test("rejects token with missing sub claim", async () => {
     .setProtectedHeader({ alg: "RS256", kid: "test-kid-001" })
     .sign(keys.privateKey);
 
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -178,7 +178,7 @@ test("rejects non-google provider", async () => {
   const token = await createMockFirebaseToken({
     firebase: { sign_in_provider: "password" },
   });
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -203,7 +203,7 @@ test("rejects token signed with wrong key", async () => {
     .setProtectedHeader({ alg: "RS256", kid: "test-kid-001" })
     .sign(privateKey);
 
-  const { verifyTokenWithKeys } = await import("../../lib/auth/firebase-verify.ts");
+  const { verifyTokenWithKeys } = await import("../../features/auth/server/firebase-verify.server.ts");
   const result = await verifyTokenWithKeys(token, PROJECT_ID, keysMap);
   assert.equal(result.ok, false);
 });

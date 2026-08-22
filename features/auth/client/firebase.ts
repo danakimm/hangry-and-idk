@@ -13,7 +13,7 @@ import {
   inMemoryPersistence,
   setPersistence,
 } from "firebase/auth";
-import { getFirebaseConfig } from "./config";
+import { getFirebaseConfig } from "./firebase-config.ts";
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;

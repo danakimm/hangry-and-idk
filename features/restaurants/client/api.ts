@@ -1,37 +1,9 @@
-export type Restaurant = {
-  id: string;
-  name: string;
-  address: string;
-  roadAddress: string;
-  category: string;
-  phone: string;
-  distanceMeters: number | null;
-  longitude: number;
-  latitude: number;
-  placeUrl: string;
-};
+"use client";
 
-export type RestaurantSearchResponse = {
-  restaurants: Restaurant[];
-  meta: {
-    totalCount: number;
-    isEnd: boolean;
-  };
-};
-
-export type RestaurantSearchError = {
-  error: {
-    code:
-      | "INVALID_REQUEST"
-      | "UNAUTHORIZED"
-      | "RATE_LIMITED"
-      | "KAKAO_API_KEY_MISSING"
-      | "KAKAO_API_TIMEOUT"
-      | "KAKAO_API_ERROR"
-      | "INTERNAL_ERROR";
-    message: string;
-  };
-};
+import type {
+  Restaurant,
+  RestaurantSearchResponse,
+} from "../shared/contract.ts";
 
 export type RestaurantSearchFailureStatus =
   | "missing-key"
@@ -65,7 +37,7 @@ function isRestaurantSearchResponse(
 
 function getRestaurantSearchError(
   value: unknown,
-): RestaurantSearchError["error"] | null {
+): { code: string; message: string } | null {
   if (!isRecord(value) || !isRecord(value.error)) return null;
   if (
     typeof value.error.code !== "string" ||
@@ -73,7 +45,7 @@ function getRestaurantSearchError(
   ) {
     return null;
   }
-  return value.error as RestaurantSearchError["error"];
+  return value.error as { code: string; message: string };
 }
 
 export async function parseRestaurantSearchResponse(
@@ -127,3 +99,5 @@ export async function parseRestaurantSearchResponse(
     message: error?.message ?? "식당 검색에 실패했습니다.",
   };
 }
+
+export type { Restaurant };

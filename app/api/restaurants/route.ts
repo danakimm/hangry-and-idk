@@ -4,7 +4,7 @@ import {
   handleRestaurantRequest,
   type RestaurantApiEnv,
   type RestaurantCache,
-} from "@/lib/restaurants-api";
+} from "@/features/restaurants/server/search.server";
 
 export async function GET(request: Request) {
   const cache = (caches as CacheStorage & { default: Cache })

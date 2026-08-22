@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { firebaseUidToRateLimitKey } from "../../lib/auth/rate-limit-key.ts";
+import { firebaseUidToRateLimitKey } from "../../features/auth/server/rate-limit-key.server.ts";
 
 test("produces deterministic key for same uid", async () => {
   const key1 = await firebaseUidToRateLimitKey("uid-abc");

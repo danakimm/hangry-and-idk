@@ -5,8 +5,8 @@ import {
   createLogoutResponse,
   getSessionResponse,
   type AuthRuntimeEnv,
-} from "../../lib/auth/session-api.ts";
-import { verifySession } from "../../lib/auth/session.ts";
+} from "../../features/auth/server/session-api.server.ts";
+import { verifySession } from "../../features/auth/server/session.server.ts";
 
 const APP_ORIGIN = "https://hangry-and-idk.site";
 const SESSION_SECRET = "test-session-secret-that-is-long-enough-for-hmac";
@@ -122,7 +122,6 @@ test("returns the current user from a valid session cookie", async () => {
   assert.equal(response.headers.get("Vary"), "Cookie");
   assert.deepStrictEqual(await response.json(), {
     user: {
-      uid: "firebase-uid-123",
       email: "user@example.com",
       name: "Test User",
     },

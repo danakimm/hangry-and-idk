@@ -4,7 +4,7 @@ import {
   jwtVerify,
   type JWTPayload,
 } from "jose";
-import type { TokenVerificationResult } from "../auth/types";
+import type { TokenVerificationResult } from "./types.server.ts";
 
 const FIREBASE_PUBLIC_KEYS_URL =
   "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com";

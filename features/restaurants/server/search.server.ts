@@ -1,13 +1,11 @@
-import { firebaseUidToRateLimitKey } from "./auth/rate-limit-key.ts";
-import {
-  readSession,
-  type AuthRuntimeEnv,
-} from "./auth/session-api.ts";
+import { firebaseUidToRateLimitKey } from "../../auth/server/rate-limit-key.server.ts";
+import { readSession } from "../../auth/server/session-api.server.ts";
+import type { AuthRuntimeEnv } from "../../auth/server/session-api.server.ts";
 import type {
   Restaurant,
-  RestaurantSearchError,
   RestaurantSearchResponse,
-} from "./restaurants.ts";
+} from "../shared/contract.ts";
+import { apiError, preventClientCaching } from "../../../server/http/json.server.ts";
 
 const KAKAO_SEARCH_URL =
   "https://dapi.kakao.com/v2/local/search/keyword.json";
@@ -17,8 +15,6 @@ const TIMEOUT_MS = 5_000;
 const COORD_CACHE_SCALE = 10_000;
 const CACHE_TTL_SECONDS = 300;
 const RATE_LIMIT_RETRY_AFTER = 60;
-
-type ErrorCode = RestaurantSearchError["error"]["code"];
 
 export type RateLimiter = {
   limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -61,31 +57,6 @@ type KakaoPayload = {
   meta: { total_count: number; is_end: boolean };
   documents: KakaoPlace[];
 };
-
-function apiError(
-  status: number,
-  code: ErrorCode,
-  message: string,
-  extraHeaders: Record<string, string> = {},
-): Response {
-  return Response.json(
-    { error: { code, message } },
-    {
-      status,
-      headers: { "Cache-Control": "no-store", ...extraHeaders },
-    },
-  );
-}
-
-function preventClientCaching(response: Response): Response {
-  const headers = new Headers(response.headers);
-  headers.set("Cache-Control", "private, no-store");
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
 
 export async function handleRestaurantRequest(
   request: Request,

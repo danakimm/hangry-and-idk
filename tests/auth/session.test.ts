@@ -7,7 +7,7 @@ import {
   buildLogoutCookie,
   getSessionCookieName,
   SESSION_MAX_AGE_SECONDS,
-} from "../../lib/auth/session.ts";
+} from "../../features/auth/server/session.server.ts";
 
 const TEST_SECRET = "test-session-secret-that-is-long-enough-for-hmac";
 

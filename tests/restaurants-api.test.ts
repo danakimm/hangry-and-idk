@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { firebaseUidToRateLimitKey } from "../lib/auth/rate-limit-key.ts";
-import { signSession } from "../lib/auth/session.ts";
+import { firebaseUidToRateLimitKey } from "../features/auth/server/rate-limit-key.server.ts";
+import { signSession } from "../features/auth/server/session.server.ts";
 import {
   handleRestaurantRequest,
   type RestaurantApiEnv,
   type RestaurantCache,
-} from "../lib/restaurants-api.ts";
+} from "../features/restaurants/server/search.server.ts";
 
 const APP_ORIGIN = "https://hangry-and-idk.site";
 const SESSION_SECRET = "test-session-secret-that-is-long-enough-for-hmac";

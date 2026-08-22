@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseRestaurantSearchResponse } from "../lib/restaurants.ts";
+import { parseRestaurantSearchResponse } from "../features/restaurants/client/api.ts";
 
 test("parses a successful restaurant response", async () => {
   const response = Response.json({

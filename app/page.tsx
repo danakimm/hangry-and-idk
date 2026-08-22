@@ -1,69 +1,22 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
-import {
-  parseRestaurantSearchResponse,
-  type Restaurant,
-} from "@/lib/restaurants";
-import KakaoRestaurantMap from "./KakaoRestaurantMap";
-import UserMenu from "./UserMenu";
-
-type MenuItem = {
-  id: number;
-  name: string;
-  emoji: string;
-  color: string;
-};
-
-type Coordinates = {
-  latitude: number;
-  longitude: number;
-};
-
-const palette = [
-  "#ef4938",
-  "#f6c84a",
-  "#2d7a57",
-  "#f4ebd8",
-  "#ee7654",
-  "#8db99b",
-  "#f0a43b",
-  "#d9c8a4",
-];
-
-const initialMenus: MenuItem[] = [
-  { id: 1, name: "한식", emoji: "🍚", color: palette[0] },
-  { id: 2, name: "중식", emoji: "🥟", color: palette[1] },
-  { id: 3, name: "일식", emoji: "🍣", color: palette[2] },
-  { id: 4, name: "양식", emoji: "🍝", color: palette[3] },
-  { id: 5, name: "분식", emoji: "🌶️", color: palette[4] },
-  { id: 6, name: "치킨", emoji: "🍗", color: palette[5] },
-  { id: 7, name: "버거", emoji: "🍔", color: palette[6] },
-  { id: 8, name: "샐러드", emoji: "🥗", color: palette[7] },
-];
-
-const defaultMenuEmoji = "🍽️";
-const customMenuEmojis = ["🍽️", "🍜", "🍲", "🍛", "🥘", "🌮", "🍕", "🥪", "🍱", "🥩"];
-
-function formatDistance(distanceMeters: number | null) {
-  if (distanceMeters === null) return "거리 정보 없음";
-  if (distanceMeters < 1_000) return `${distanceMeters}m`;
-  return `${(distanceMeters / 1_000).toFixed(1)}km`;
-}
-
-function getRandomIndex(length: number) {
-  const values = crypto.getRandomValues(new Uint32Array(1));
-  return Math.floor((values[0] / 2 ** 32) * length);
-}
+import { useCallback, useRef, useState } from "react";
+import { parseRestaurantSearchResponse } from "@/features/restaurants/client/api";
+import type { Restaurant } from "@/features/restaurants/shared/contract";
+import type { Coordinates } from "@/features/restaurants/client/types";
+import type { MenuItem } from "@/features/roulette/shared/contract";
+import { LOCATION_TIMEOUT_MS } from "@/features/roulette/shared/constants";
+import MenuEditor from "@/features/roulette/client/MenuEditor";
+import RouletteWheel from "@/features/roulette/client/RouletteWheel";
+import type { RouletteWheelHandle } from "@/features/roulette/client/RouletteWheel";
+import RouletteResult from "@/features/roulette/client/RouletteResult";
+import UserMenu from "@/features/auth/client/UserMenu";
+import { useMenuState } from "@/features/roulette/client/useMenuState";
 
 export default function Home() {
-  const [menus, setMenus] = useState<MenuItem[]>(initialMenus);
-  const [newMenu, setNewMenu] = useState("");
-  const [newMenuEmoji, setNewMenuEmoji] = useState(defaultMenuEmoji);
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [rotation, setRotation] = useState(0);
-  const [isSpinning, setIsSpinning] = useState(false);
+  const { menus, addMenu, removeMenu, resetMenus, resetKey } = useMenuState();
   const [selected, setSelected] = useState<MenuItem | null>(null);
+  const [isSpinning, setIsSpinning] = useState(false);
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<
     "idle" | "loading" | "ready" | "denied"
@@ -74,132 +27,105 @@ export default function Home() {
   >("idle");
   const [restaurantMessage, setRestaurantMessage] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
+  const wheelRef = useRef<RouletteWheelHandle>(null);
   const restaurantRequestIdRef = useRef(0);
 
-  const clearRestaurantSearch = () => {
+  const clearRestaurantSearch = useCallback(() => {
     restaurantRequestIdRef.current += 1;
     setRestaurants([]);
     setRestaurantStatus("idle");
     setRestaurantMessage("");
-  };
+  }, []);
 
-  const sliceAngle = 360 / menus.length;
-  const wheelBackground = useMemo(() => {
-    const stops = menus.map((menu, index) => {
-      const start = index * sliceAngle;
-      const end = (index + 1) * sliceAngle;
-      return `${menu.color} ${start}deg ${end}deg`;
-    });
-    return `conic-gradient(from ${-sliceAngle / 2}deg, ${stops.join(", ")})`;
-  }, [menus, sliceAngle]);
+  const searchRestaurants = useCallback(
+    async (
+      menuName: string,
+      nextCoordinates: Coordinates,
+      requestId: number,
+    ) => {
+      setRestaurants([]);
+      setRestaurantMessage("");
+      setRestaurantStatus("loading");
 
-  const spinWheel = () => {
-    if (isSpinning || menus.length < 2) return;
+      const params = new URLSearchParams({
+        menu: menuName,
+        lat: String(nextCoordinates.latitude),
+        lng: String(nextCoordinates.longitude),
+      });
 
-    const chosenIndex = getRandomIndex(menus.length);
-    const currentAngle = ((rotation % 360) + 360) % 360;
-    const alignment =
-      ((360 - currentAngle - chosenIndex * sliceAngle) % 360 + 360) % 360;
-    const nextRotation = rotation + 360 * 6 + alignment;
+      try {
+        const response = await fetch(`/api/restaurants?${params}`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const result = await parseRestaurantSearchResponse(response);
 
+        if (restaurantRequestIdRef.current !== requestId) return;
+
+        if (!result.ok) {
+          setRestaurantStatus(result.status);
+          setRestaurantMessage(result.message);
+          return;
+        }
+
+        setRestaurants(result.data.restaurants);
+        setRestaurantStatus("ready");
+      } catch {
+        if (restaurantRequestIdRef.current !== requestId) return;
+        setRestaurantStatus("error");
+        setRestaurantMessage("식당 검색 서버에 연결하지 못했습니다.");
+      }
+    },
+    [],
+  );
+
+  const handleSpinStart = useCallback(() => {
     setSelected(null);
     setCoordinates(null);
     setLocationStatus("idle");
     clearRestaurantSearch();
     setIsSpinning(true);
-    setRotation(nextRotation);
+  }, [clearRestaurantSearch]);
 
+  const handleSpinComplete = useCallback((item: MenuItem) => {
+    setSelected(item);
+    setIsSpinning(false);
     window.setTimeout(() => {
-      setSelected(menus[chosenIndex]);
-      setIsSpinning(false);
-      window.setTimeout(() => {
-        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 80);
-    }, 4100);
-  };
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 80);
+  }, []);
 
-  const addMenu = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const name = newMenu.trim();
-    if (!name || menus.length >= 10) return;
+  const handleAddMenu = useCallback(
+    (name: string, emoji: string) => {
+      addMenu(name, emoji);
+      setSelected(null);
+      clearRestaurantSearch();
+    },
+    [addMenu, clearRestaurantSearch],
+  );
 
-    const index = menus.length;
-    setMenus((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        name,
-        emoji: newMenuEmoji,
-        color: palette[index % palette.length],
-      },
-    ]);
-    setNewMenu("");
-    setNewMenuEmoji(defaultMenuEmoji);
-    setIsEmojiPickerOpen(false);
-    setSelected(null);
-    clearRestaurantSearch();
-  };
+  const handleRemoveMenu = useCallback(
+    (id: string) => {
+      if (menus.length <= 2 || isSpinning) return;
+      removeMenu(id);
+      setSelected(null);
+      wheelRef.current?.resetRotation();
+      clearRestaurantSearch();
+    },
+    [menus.length, isSpinning, removeMenu, clearRestaurantSearch],
+  );
 
-  const removeMenu = (id: number) => {
-    if (menus.length <= 2 || isSpinning) return;
-    setMenus((current) => current.filter((menu) => menu.id !== id));
-    setSelected(null);
-    setRotation(0);
-    clearRestaurantSearch();
-  };
-
-  const resetMenus = () => {
+  const handleResetMenus = useCallback(() => {
     if (isSpinning) return;
-    setMenus(initialMenus);
+    resetMenus();
     setSelected(null);
-    setRotation(0);
     setCoordinates(null);
     setLocationStatus("idle");
-    setNewMenuEmoji(defaultMenuEmoji);
-    setIsEmojiPickerOpen(false);
+    wheelRef.current?.resetRotation();
     clearRestaurantSearch();
-  };
+  }, [isSpinning, resetMenus, clearRestaurantSearch]);
 
-  const searchRestaurants = async (
-    menuName: string,
-    nextCoordinates: Coordinates,
-    requestId: number,
-  ) => {
-    setRestaurants([]);
-    setRestaurantMessage("");
-    setRestaurantStatus("loading");
-
-    const params = new URLSearchParams({
-      menu: menuName,
-      lat: String(nextCoordinates.latitude),
-      lng: String(nextCoordinates.longitude),
-    });
-
-    try {
-      const response = await fetch(`/api/restaurants?${params}`, {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      const result = await parseRestaurantSearchResponse(response);
-
-      if (restaurantRequestIdRef.current !== requestId) return;
-
-      if (!result.ok) {
-        setRestaurantStatus(result.status);
-        setRestaurantMessage(result.message);
-        return;
-      }
-
-      setRestaurants(result.data.restaurants);
-      setRestaurantStatus("ready");
-    } catch {
-      if (restaurantRequestIdRef.current !== requestId) return;
-      setRestaurantStatus("error");
-      setRestaurantMessage("식당 검색 서버에 연결하지 못했습니다.");
-    }
-  };
-
-  const requestLocation = () => {
+  const requestLocation = useCallback(() => {
     if (!selected) return;
 
     if (coordinates) {
@@ -230,9 +156,9 @@ export default function Home() {
         if (restaurantRequestIdRef.current !== requestId) return;
         setLocationStatus("denied");
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 },
+      { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT_MS, maximumAge: 300000 },
     );
-  };
+  }, [selected, coordinates, searchRestaurants]);
 
   return (
     <main>
@@ -265,284 +191,33 @@ export default function Home() {
       </section>
 
       <section className="game-board" aria-label="메뉴 룰렛">
-        <div className="wheel-stage">
-          <div className="stage-label">
-            <span>STEP 01</span>
-            <strong>룰렛 돌리기</strong>
-          </div>
+        <RouletteWheel
+          ref={wheelRef}
+          menus={menus}
+          onSpinStart={handleSpinStart}
+          onSpinComplete={handleSpinComplete}
+        />
 
-          <div className="wheel-wrap">
-            <div className="pointer" aria-hidden="true">
-              <span />
-            </div>
-            <div
-              className={`wheel ${isSpinning ? "is-spinning" : ""}`}
-              style={{
-                background: wheelBackground,
-                transform: `rotate(${rotation}deg)`,
-              }}
-              aria-hidden="true"
-            >
-              <div className="wheel-lines" />
-              {menus.map((menu, index) => {
-                const angle = index * sliceAngle;
-                const radians = (angle * Math.PI) / 180;
-                const left = 50 + 34 * Math.sin(radians);
-                const top = 50 - 34 * Math.cos(radians);
-                return (
-                  <div
-                    className="wheel-label"
-                    key={menu.id}
-                    style={{ left: `${left}%`, top: `${top}%` }}
-                  >
-                    <span>{menu.emoji}</span>
-                    <b>{menu.name}</b>
-                  </div>
-                );
-              })}
-              <div className="wheel-center" />
-            </div>
-          </div>
-
-          <button
-            className="spin-button"
-            type="button"
-            onClick={spinWheel}
-            disabled={isSpinning || menus.length < 2}
-          >
-            <span>{isSpinning ? "고르는 중..." : "룰렛 돌리기"}</span>
-            <span aria-hidden="true">→</span>
-          </button>
-          <p className="spin-hint">최소 2개, 최대 10개의 메뉴로 돌릴 수 있어요.</p>
-        </div>
-
-        <aside className="menu-panel">
-          <div className="panel-heading">
-            <div>
-              <span>MY MENU LIST</span>
-              <h2>오늘의 후보</h2>
-            </div>
-            <button type="button" className="text-button" onClick={resetMenus}>
-              처음대로
-            </button>
-          </div>
-
-          <ul className="menu-list" aria-label="룰렛 메뉴 목록">
-            {menus.map((menu, index) => (
-              <li key={menu.id}>
-                <span className="menu-number">{String(index + 1).padStart(2, "0")}</span>
-                <span className="menu-emoji" aria-hidden="true">{menu.emoji}</span>
-                <strong>{menu.name}</strong>
-                <button
-                  type="button"
-                  onClick={() => removeMenu(menu.id)}
-                  disabled={menus.length <= 2 || isSpinning}
-                  aria-label={`${menu.name} 삭제`}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          <form className="menu-form" onSubmit={addMenu}>
-            <label htmlFor="menu-input">먹고 싶은 메뉴 직접 추가</label>
-            <div className="menu-input-row">
-              <button
-                type="button"
-                className="emoji-trigger"
-                onClick={() => setIsEmojiPickerOpen((current) => !current)}
-                disabled={menus.length >= 10 || isSpinning}
-                aria-haspopup="listbox"
-                aria-expanded={isEmojiPickerOpen}
-                aria-label={`메뉴 아이콘 ${newMenuEmoji}, 변경`}
-              >
-                {newMenuEmoji}
-              </button>
-              <input
-                id="menu-input"
-                value={newMenu}
-                onChange={(event) => setNewMenu(event.target.value)}
-                placeholder="예: 쌀국수"
-                maxLength={12}
-                disabled={menus.length >= 10 || isSpinning}
-              />
-              <button
-                type="submit"
-                className="add-menu-button"
-                disabled={!newMenu.trim() || menus.length >= 10 || isSpinning}
-                aria-label="메뉴 추가"
-              >
-                +
-              </button>
-            </div>
-            {isEmojiPickerOpen && (
-              <div className="emoji-picker" role="listbox" aria-label="메뉴 아이콘 선택">
-                {customMenuEmojis.map((emoji) => (
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={newMenuEmoji === emoji}
-                    aria-label={`${emoji} 아이콘 선택`}
-                    key={emoji}
-                    onClick={() => {
-                      setNewMenuEmoji(emoji);
-                      setIsEmojiPickerOpen(false);
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-          </form>
-        </aside>
+        <MenuEditor
+          menus={menus}
+          isSpinning={isSpinning}
+          resetKey={resetKey}
+          onAdd={handleAddMenu}
+          onRemove={handleRemoveMenu}
+          onReset={handleResetMenus}
+        />
       </section>
 
-      <section className="result-section" ref={resultRef} aria-live="polite">
-        <div className="ticket-corner top-left" />
-        <div className="ticket-corner top-right" />
-        <div className="result-intro">
-          <span>STEP 02</span>
-          <h2>{selected ? "오늘의 메뉴가 정해졌어요!" : "룰렛을 돌리면 여기에 결과가 나와요"}</h2>
-          <p>
-            {selected
-              ? "이제 가까운 곳에서 맛있는 한 끼를 찾아볼까요?"
-              : "운명에 맡길 준비가 됐다면 위의 버튼을 눌러보세요."}
-          </p>
-        </div>
-
-        <div className={`result-card ${selected ? "has-result" : ""}`}>
-          {selected ? (
-            <>
-              <div
-                className={`selected-food ${coordinates ? "has-map" : ""}`}
-                style={coordinates ? undefined : { backgroundColor: selected.color }}
-              >
-                {coordinates ? (
-                  <KakaoRestaurantMap
-                    coordinates={coordinates}
-                    restaurants={restaurants}
-                    selectedColor={selected.color}
-                    selectedEmoji={selected.emoji}
-                    selectedName={selected.name}
-                  />
-                ) : (
-                  <>
-                    <span>{selected.emoji}</span>
-                    <small>TODAY&apos;S PICK</small>
-                    <strong>{selected.name}</strong>
-                  </>
-                )}
-              </div>
-              <div className="map-search">
-                <div className="location-row">
-                  <div>
-                    <span className="pin-icon" aria-hidden="true">●</span>
-                    <div>
-                      <strong>
-                        {locationStatus === "ready" ? "현재 위치를 찾았어요" : "내 주변에서 찾기"}
-                      </strong>
-                      <small>
-                        {locationStatus === "loading" && "위치를 확인하고 있어요..."}
-                        {locationStatus === "ready" && "현재 위치 기준으로 식당을 검색해요."}
-                        {locationStatus === "denied" && "위치 없이도 지도에서 검색할 수 있어요."}
-                        {locationStatus === "idle" && "더 가까운 식당을 찾으려면 위치를 알려주세요."}
-                      </small>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={requestLocation}
-                    disabled={locationStatus === "loading" || restaurantStatus === "loading"}
-                  >
-                    {locationStatus === "loading" && "위치 확인 중"}
-                    {locationStatus !== "loading" && restaurantStatus === "loading" && "검색 중"}
-                    {locationStatus === "ready" && restaurantStatus !== "loading" && "다시 검색"}
-                    {locationStatus !== "loading" &&
-                      locationStatus !== "ready" &&
-                      restaurantStatus !== "loading" &&
-                      "내 위치 사용"}
-                  </button>
-                </div>
-
-                <div className="restaurant-results" aria-live="polite">
-                  <div className="restaurant-heading">
-                    <div>
-                      <span>NEARBY RESTAURANTS</span>
-                      <h3>내 주변 식당</h3>
-                    </div>
-                    {restaurantStatus === "ready" && restaurants.length > 0 && (
-                      <small>{restaurants.length}곳</small>
-                    )}
-                  </div>
-
-                  {restaurantStatus === "idle" && (
-                    <p className="restaurant-state">
-                      위치를 허용하면 선택된 메뉴를 파는 가까운 식당을 여기에 보여드려요.
-                    </p>
-                  )}
-                  {restaurantStatus === "loading" && (
-                    <p className="restaurant-state is-loading">가까운 식당을 찾고 있어요...</p>
-                  )}
-                  {restaurantStatus === "missing-key" && (
-                    <div className="restaurant-state api-ready">
-                      <strong>백엔드 연결 준비 완료</strong>
-                      <p>{restaurantMessage}</p>
-                      <code>KAKAO_REST_API_KEY</code>
-                    </div>
-                  )}
-                  {restaurantStatus === "unauthorized" && (
-                    <div className="restaurant-state is-error">
-                      <strong>로그인이 필요합니다</strong>
-                      <p>{restaurantMessage}</p>
-                    </div>
-                  )}
-                  {restaurantStatus === "rate-limited" && (
-                    <div className="restaurant-state is-error">
-                      <strong>요청이 너무 많습니다</strong>
-                      <p>{restaurantMessage}</p>
-                    </div>
-                  )}
-                  {restaurantStatus === "error" && (
-                    <p className="restaurant-state is-error">{restaurantMessage}</p>
-                  )}
-                  {restaurantStatus === "ready" && restaurants.length === 0 && (
-                    <p className="restaurant-state">반경 5km 안에서 검색 결과를 찾지 못했어요.</p>
-                  )}
-                  {restaurantStatus === "ready" && restaurants.length > 0 && (
-                    <ol className="restaurant-list">
-                      {restaurants.map((restaurant, index) => (
-                        <li key={restaurant.id}>
-                          <span className="restaurant-rank">{String(index + 1).padStart(2, "0")}</span>
-                          <div>
-                            <div className="restaurant-name-row">
-                              <strong>{restaurant.name}</strong>
-                              <small>{formatDistance(restaurant.distanceMeters)}</small>
-                            </div>
-                            <p>{restaurant.roadAddress || restaurant.address}</p>
-                          </div>
-                          <a href={restaurant.placeUrl} target="_blank" rel="noreferrer">
-                            상세 ↗
-                          </a>
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-
-              </div>
-            </>
-          ) : (
-            <div className="empty-result">
-              <span aria-hidden="true">?</span>
-              <p>오늘의 한 끼는<br />무엇이 될까요?</p>
-            </div>
-          )}
-        </div>
-        <div className="ticket-corner bottom-left" />
-        <div className="ticket-corner bottom-right" />
-      </section>
+      <RouletteResult
+        ref={resultRef}
+        selected={selected}
+        coordinates={coordinates}
+        restaurants={restaurants}
+        locationStatus={locationStatus}
+        restaurantStatus={restaurantStatus}
+        restaurantMessage={restaurantMessage}
+        onRequestLocation={requestLocation}
+      />
 
       <footer>
         <p>오늘 뭐 먹지?</p>

@@ -1,12 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Restaurant } from "../lib/restaurants";
-
-type Coordinates = {
-  latitude: number;
-  longitude: number;
-};
+import type { Restaurant } from "../shared/contract.ts";
+import type { Coordinates } from "./types.ts";
 
 type KakaoLatLng = object;
 
