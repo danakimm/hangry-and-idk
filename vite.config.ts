@@ -5,6 +5,7 @@ import { defineConfig } from "vite";
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const workerConfig = {
+  name: "hangry-and-idk",
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   // 배포는 원격 설정을 이 config로 덮어씀 → 커스텀 도메인/워커dev차단/vars를
