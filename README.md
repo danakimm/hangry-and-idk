@@ -173,8 +173,11 @@ npm run deploy
 - `npm run dev`: 로컬 개발 서버
 - `npm run build`: vinext 프로덕션 빌드
 - `npm run deploy`: 빌드 후 Cloudflare Workers 운영 환경에 배포
-- `npm test`: 인증·세션·식당 검색 테스트
+- `npm test`: 인증·세션·식당 검색·사용자 테스트
 - `npm run lint`: ESLint
+- `npm run d1:migrations:apply`: 로컬 D1에 migration 적용
+- `npm run d1:migrations:list`: 로컬 D1에 적용되지 않은 migration 목록 확인
+- `npm run d1:migrations:apply:remote`: 원격 D1에 migration 적용 (운영 승인 후)
 
 ## 관련 문서
 
