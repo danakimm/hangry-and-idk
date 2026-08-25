@@ -34,6 +34,9 @@ export function normalizeD1Error(error: unknown): string {
     if (error.message.includes("UNIQUE constraint failed")) {
       return "중복된 데이터가 존재합니다.";
     }
+    if (error.message.includes("MENU_SET_LIMIT_REACHED")) {
+      return "MENU_SET_LIMIT_REACHED";
+    }
     return "데이터베이스 오류가 발생했습니다.";
   }
   return "알 수 없는 데이터베이스 오류가 발생했습니다.";

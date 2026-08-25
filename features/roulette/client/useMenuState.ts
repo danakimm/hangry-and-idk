@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import type { MenuItem } from "../shared/contract.ts";
 import { palette } from "../shared/constants.ts";
 
-const initialMenus: MenuItem[] = [
+export const initialMenus: MenuItem[] = [
   { id: "default-1", name: "한식", emoji: "🍚", color: palette[0] },
   { id: "default-2", name: "중식", emoji: "🥟", color: palette[1] },
   { id: "default-3", name: "일식", emoji: "🍣", color: palette[2] },
@@ -39,7 +39,7 @@ export function useMenuState() {
   }, []);
 
   const resetMenus = useCallback(() => {
-    setMenus(initialMenus);
+    setMenus(initialMenus.map((menu) => ({ ...menu })));
     setResetKey((k) => k + 1);
   }, []);
 

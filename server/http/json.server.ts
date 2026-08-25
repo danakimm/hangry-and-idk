@@ -24,7 +24,7 @@ export function apiError(
     { error: { code, message } },
     {
       status,
-      headers: { "Cache-Control": "no-store", ...extraHeaders },
+      headers: { ...NO_STORE_HEADERS, ...extraHeaders },
     },
   );
 }

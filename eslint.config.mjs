@@ -68,6 +68,13 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: ["app/layout.tsx"],
+    rules: {
+      "no-restricted-imports": "off",
+      "no-restricted-syntax": "off",
+    },
+  },
+  {
     files: ["features/**/shared/**"],
     rules: {
       "no-restricted-imports": [
