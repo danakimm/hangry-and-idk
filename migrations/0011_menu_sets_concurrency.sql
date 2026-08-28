@@ -1,3 +1,5 @@
+ALTER TABLE menu_sets ADD COLUMN write_token TEXT;
+
 CREATE TRIGGER IF NOT EXISTS trg_menu_sets_limit_insert
 BEFORE INSERT ON menu_sets
 WHEN NEW.archived_at IS NULL

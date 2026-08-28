@@ -33,7 +33,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "회사 점심",
       version: 1,
-      isDefault: true,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -96,6 +95,35 @@ describe("menu_sets D1 repository", async () => {
     assert.equal(agg!.menuSet.version, 2);
   });
 
+  test("updateAggregate returns notFound for missing or different-owner targets", async () => {
+    const repo = createMenuSetRepository({ db, clock, idGenerator });
+    const input = {
+      name: "not found",
+      items: [
+        { id: "nf-1", name: "A", normalizedName: "a", emoji: "🍚", color: "#ef4938", position: 0 },
+        { id: "nf-2", name: "B", normalizedName: "b", emoji: "🥟", color: "#f6c84a", position: 1 },
+      ],
+    };
+
+    const missing = await repo.updateAggregate(
+      "missing-menu-set",
+      "owner-001",
+      1,
+      input,
+      1700000100,
+    );
+    const differentOwner = await repo.updateAggregate(
+      "ms-001",
+      "another-owner",
+      2,
+      input,
+      1700000100,
+    );
+
+    assert.equal(missing.status, "notFound");
+    assert.equal(differentOwner.status, "notFound");
+  });
+
   test("stale version leaves header and items unchanged (D1 proof)", async () => {
     const repo = createMenuSetRepository({ db, clock, idGenerator });
 
@@ -135,7 +163,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "rollback test",
       version: 1,
-      isDefault: false,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -174,6 +201,11 @@ describe("menu_sets D1 repository", async () => {
     assert.notEqual(after, null);
     assert.equal(after!.menuSet.name, beforeName);
     assert.equal(after!.menuSet.version, beforeVersion);
+    assert.deepEqual(after!.items, before!.items);
+    const tokenRow = await db
+      .prepare("SELECT write_token FROM menu_sets WHERE id = 'ms-rollback'")
+      .first<{ write_token: string | null }>();
+    assert.equal(tokenRow?.write_token, null);
   });
 
   test("archiveWithFallback marks archived and clears default atomically", async () => {
@@ -183,7 +215,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "archive test 1",
       version: 1,
-      isDefault: false,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -213,7 +244,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "stale archive",
       version: 1,
-      isDefault: false,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -236,7 +266,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "default 1",
       version: 1,
-      isDefault: false,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -249,7 +278,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "default 2",
       version: 1,
-      isDefault: false,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -277,7 +305,6 @@ describe("menu_sets D1 repository", async () => {
           ownerUserId: "owner-001",
           name: "dup test",
           version: 1,
-          isDefault: false,
           createdAt: 1700000000,
           updatedAt: 1700000000,
           items: [
@@ -301,7 +328,6 @@ describe("menu_sets D1 repository", async () => {
           ownerUserId: "owner-001",
           name: "dup pos test",
           version: 1,
-          isDefault: false,
           createdAt: 1700000000,
           updatedAt: 1700000000,
           items: [
@@ -316,14 +342,13 @@ describe("menu_sets D1 repository", async () => {
     );
   });
 
-  test("concurrent-first create hint preserves one default without rejecting create", async () => {
+  test("create preserves the existing default without rejecting the new set", async () => {
     const repo = createMenuSetRepository({ db, clock, idGenerator });
     await repo.create({
       id: "ms-dupdef-1",
       ownerUserId: "owner-001",
       name: "dupdef 1",
       version: 1,
-      isDefault: false,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [
@@ -338,7 +363,6 @@ describe("menu_sets D1 repository", async () => {
       ownerUserId: "owner-001",
       name: "dupdef 2",
       version: 1,
-      isDefault: true,
       createdAt: 1700000000,
       updatedAt: 1700000000,
       items: [

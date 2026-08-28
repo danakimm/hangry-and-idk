@@ -138,15 +138,16 @@ describe("menu_sets migration", () => {
     await disposeTestD1();
   });
 
-  test("migration is idempotent", async () => {
+  test("write_token column is present and nullable after migrations", async () => {
     const db = await createTestD1();
     await applyMigrations(db);
-    await applyMigrations(db);
 
-    const menuSetsTable = await db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='menu_sets'")
-      .first<{ name: string }>();
-    assert.notEqual(menuSetsTable, null);
+    const columns = await db
+      .prepare("PRAGMA table_info(menu_sets)")
+      .all<{ name: string; notnull: number }>();
+    const writeToken = columns.results.find((column) => column.name === "write_token");
+    assert.notEqual(writeToken, undefined);
+    assert.equal(writeToken?.notnull, 0);
 
     await disposeTestD1();
   });

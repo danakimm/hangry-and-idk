@@ -42,13 +42,19 @@ function createFakeRepository(overrides: Partial<MenuSetRepository> = {}): MenuS
       return activeCount;
     },
     async create(data) {
+      const isDefault = ![...store.values()].some(
+        (aggregate) =>
+          aggregate.menuSet.ownerUserId === data.ownerUserId &&
+          aggregate.menuSet.archivedAt === null &&
+          aggregate.menuSet.isDefault,
+      );
       const agg: MenuSetAggregate = {
         menuSet: {
           id: data.id,
           ownerUserId: data.ownerUserId,
           name: data.name,
           version: data.version,
-          isDefault: data.isDefault,
+          isDefault,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
           archivedAt: null,
@@ -222,6 +228,64 @@ describe("menu_sets service (fake repository)", () => {
 
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error.code, "MENU_SET_VERSION_CONFLICT");
+  });
+
+  test("update rejects an item id that does not belong to the menu set", async () => {
+    const idGen = createFakeIdGenerator();
+    const repo = createFakeRepository();
+    const service = createMenuSetService({ repository: repo, idGenerator: idGen, clock: createFakeClock() });
+
+    idGen.setNext("ms-item-owner");
+    const created = await service.create("owner-item-validation", {
+      name: "테스트",
+      items: [
+        { id: null, name: "한식", emoji: "🍚", color: "#ef4938" },
+        { id: null, name: "중식", emoji: "🥟", color: "#f6c84a" },
+      ],
+    });
+    assert.equal(created.ok, true);
+
+    const result = await service.update("ms-item-owner", "owner-item-validation", {
+      version: 1,
+      name: "테스트",
+      items: [
+        { id: "forged-item-id", name: "한식", emoji: "🍚", color: "#ef4938" },
+        { id: null, name: "중식", emoji: "🥟", color: "#f6c84a" },
+      ],
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, "INVALID_MENU_SET");
+  });
+
+  test("update rejects a duplicated existing item id", async () => {
+    const idGen = createFakeIdGenerator();
+    const repo = createFakeRepository();
+    const service = createMenuSetService({ repository: repo, idGenerator: idGen, clock: createFakeClock() });
+
+    idGen.setNext("ms-duplicate-item");
+    const created = await service.create("owner-duplicate-item", {
+      name: "테스트",
+      items: [
+        { id: null, name: "한식", emoji: "🍚", color: "#ef4938" },
+        { id: null, name: "중식", emoji: "🥟", color: "#f6c84a" },
+      ],
+    });
+    assert.equal(created.ok, true);
+    if (!created.ok) assert.fail("Expected menu set creation to succeed");
+    const existingItemId = created.data.items[0].id;
+
+    const result = await service.update("ms-duplicate-item", "owner-duplicate-item", {
+      version: 1,
+      name: "테스트",
+      items: [
+        { id: existingItemId, name: "한식", emoji: "🍚", color: "#ef4938" },
+        { id: existingItemId, name: "중식", emoji: "🥟", color: "#f6c84a" },
+      ],
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, "INVALID_MENU_SET");
   });
 
   test("archive fails with stale version", async () => {

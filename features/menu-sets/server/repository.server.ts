@@ -164,13 +164,16 @@ export function createMenuSetRepository(
 
     async create(data): Promise<void> {
       try {
+        // Decide the default in the insert transaction, not from a service pre-read.
+        // If archive wins first this create fills the vacancy; if create wins first
+        // archive can promote it. The partial unique index still caps defaults at one.
         const statements = [
           db
             .prepare(
               `INSERT INTO menu_sets (id, owner_user_id, name, version, is_default, created_at, updated_at)
                VALUES (?, ?, ?, ?,
                  CASE
-                   WHEN ? = 1 AND NOT EXISTS (
+                   WHEN NOT EXISTS (
                      SELECT 1 FROM menu_sets
                      WHERE owner_user_id = ? AND is_default = 1 AND archived_at IS NULL
                    ) THEN 1
@@ -183,7 +186,6 @@ export function createMenuSetRepository(
               data.ownerUserId,
               data.name,
               data.version,
-              data.isDefault ? 1 : 0,
               data.ownerUserId,
               data.createdAt,
               data.updatedAt,
@@ -218,23 +220,15 @@ export function createMenuSetRepository(
       input: UpdateAggregateInput,
       updatedAt: number,
     ): Promise<AggregateWriteResult> {
-      const existing = await findMenuSetRow(menuSetId, ownerUserId);
-      if (!existing || existing.archived_at !== null) return { status: "notFound" };
-      if (existing.version !== currentVersion) return { status: "versionConflict" };
-
-      // D1 batch rolls back on SQL failure, but a zero-row CAS UPDATE is still a
-      // successful statement. Use a transaction-local marker in the name column
-      // so every following item statement is conditional on this exact write
-      // having won the CAS. The final statement restores the validated name.
-      const writeMarker = `__menu_set_write__${idGenerator.uuid()}`;
+      const writeToken = idGenerator.uuid();
 
       const headerStmt = db
         .prepare(
           `UPDATE menu_sets
-           SET name = ?, version = version + 1, updated_at = ?
+           SET name = ?, version = version + 1, updated_at = ?, write_token = ?
            WHERE id = ? AND owner_user_id = ? AND version = ? AND archived_at IS NULL`,
         )
-        .bind(writeMarker, updatedAt, menuSetId, ownerUserId, currentVersion);
+        .bind(input.name, updatedAt, writeToken, menuSetId, ownerUserId, currentVersion);
 
       const deleteStmt = db
         .prepare(
@@ -243,7 +237,7 @@ export function createMenuSetRepository(
              AND EXISTS (
                SELECT 1 FROM menu_sets
                WHERE id = ? AND owner_user_id = ? AND version = ?
-                 AND name = ? AND archived_at IS NULL
+                 AND write_token = ? AND archived_at IS NULL
              )`,
         )
         .bind(
@@ -251,7 +245,7 @@ export function createMenuSetRepository(
           menuSetId,
           ownerUserId,
           currentVersion + 1,
-          writeMarker,
+          writeToken,
         );
 
       const insertStmts = input.items.map((item) =>
@@ -262,7 +256,7 @@ export function createMenuSetRepository(
              WHERE EXISTS (
                SELECT 1 FROM menu_sets
                WHERE id = ? AND owner_user_id = ? AND version = ?
-                 AND name = ? AND archived_at IS NULL
+                 AND write_token = ? AND archived_at IS NULL
              )`,
           )
           .bind(
@@ -276,34 +270,31 @@ export function createMenuSetRepository(
             menuSetId,
             ownerUserId,
             currentVersion + 1,
-            writeMarker,
+            writeToken,
           ),
       );
 
-      const finalizeStmt = db
+      const clearTokenStmt = db
         .prepare(
           `UPDATE menu_sets
-           SET name = ?
+           SET write_token = NULL
            WHERE id = ? AND owner_user_id = ? AND version = ?
-             AND name = ? AND archived_at IS NULL`,
+             AND write_token = ? AND archived_at IS NULL`,
         )
-        .bind(
-          input.name,
-          menuSetId,
-          ownerUserId,
-          currentVersion + 1,
-          writeMarker,
-        );
+        .bind(menuSetId, ownerUserId, currentVersion + 1, writeToken);
 
       try {
         const batchResult = await db.batch([
           headerStmt,
           deleteStmt,
           ...insertStmts,
-          finalizeStmt,
+          clearTokenStmt,
         ]);
         if (!batchResult[0].success || batchResult[0].meta.changes === 0) {
-          return { status: "versionConflict" };
+          const current = await findMenuSetRow(menuSetId, ownerUserId);
+          return current && current.archived_at === null
+            ? { status: "versionConflict" }
+            : { status: "notFound" };
         }
       } catch (error) {
         throw new Error(normalizeD1Error(error));
@@ -325,19 +316,19 @@ export function createMenuSetRepository(
         if (!existing || existing.archived_at !== null) return { status: "notFound" as const };
         if (existing.version !== currentVersion) return { status: "versionConflict" as const };
 
-        const writeMarker = `__menu_set_archive__${idGenerator.uuid()}`;
+        const writeToken = idGenerator.uuid();
 
         const archiveStmt = db
           .prepare(
             `UPDATE menu_sets
-             SET name = ?, archived_at = ?, is_default = 0,
-                 version = version + 1, updated_at = ?
+             SET archived_at = ?, is_default = 0,
+                 version = version + 1, updated_at = ?, write_token = ?
              WHERE id = ? AND owner_user_id = ? AND version = ? AND archived_at IS NULL`,
           )
           .bind(
-            writeMarker,
             archivedAt,
             archivedAt,
+            writeToken,
             menuSetId,
             ownerUserId,
             currentVersion,
@@ -361,7 +352,7 @@ export function createMenuSetRepository(
                AND EXISTS (
                  SELECT 1 FROM menu_sets
                  WHERE id = ? AND owner_user_id = ? AND version = ?
-                   AND name = ? AND archived_at = ?
+                   AND write_token = ? AND archived_at = ?
                )`,
           )
           .bind(
@@ -372,27 +363,26 @@ export function createMenuSetRepository(
             menuSetId,
             ownerUserId,
             currentVersion + 1,
-            writeMarker,
+            writeToken,
             archivedAt,
           );
 
-        const finalizeStmt = db
+        const clearTokenStmt = db
           .prepare(
             `UPDATE menu_sets
-             SET name = ?
+             SET write_token = NULL
              WHERE id = ? AND owner_user_id = ? AND version = ?
-               AND name = ? AND archived_at = ?`,
+               AND write_token = ? AND archived_at = ?`,
           )
           .bind(
-            existing.name,
             menuSetId,
             ownerUserId,
             currentVersion + 1,
-            writeMarker,
+            writeToken,
             archivedAt,
           );
 
-        const results = await db.batch([archiveStmt, fallbackStmt, finalizeStmt]);
+        const results = await db.batch([archiveStmt, fallbackStmt, clearTokenStmt]);
 
         if (!results[0].success || results[0].meta.changes === 0) {
           return { status: "versionConflict" as const };
@@ -423,20 +413,19 @@ export function createMenuSetRepository(
         if (!existing || existing.archived_at !== null) return { status: "notFound" as const };
 
         const now = clock.nowSeconds();
-        const writeMarker = `__menu_set_default__${idGenerator.uuid()}`;
+        const writeToken = idGenerator.uuid();
         const claimStmt = db
           .prepare(
             `UPDATE menu_sets
-             SET name = ?
+             SET write_token = ?
              WHERE id = ? AND owner_user_id = ? AND version = ?
-               AND name = ? AND archived_at IS NULL`,
+               AND archived_at IS NULL`,
           )
           .bind(
-            writeMarker,
+            writeToken,
             menuSetId,
             ownerUserId,
             existing.version,
-            existing.name,
           );
         const clearStmt = db
           .prepare(
@@ -446,7 +435,7 @@ export function createMenuSetRepository(
                AND archived_at IS NULL
                AND EXISTS (
                  SELECT 1 FROM menu_sets
-                 WHERE id = ? AND owner_user_id = ? AND name = ? AND archived_at IS NULL
+                 WHERE id = ? AND owner_user_id = ? AND write_token = ? AND archived_at IS NULL
                )`,
           )
           .bind(
@@ -455,17 +444,17 @@ export function createMenuSetRepository(
             menuSetId,
             menuSetId,
             ownerUserId,
-            writeMarker,
+            writeToken,
           );
         const setStmt = db
           .prepare(
             `UPDATE menu_sets
-             SET name = ?, is_default = 1,
+             SET is_default = 1, write_token = NULL,
                  version = CASE WHEN is_default = 1 THEN version ELSE version + 1 END,
                  updated_at = ?
-             WHERE id = ? AND owner_user_id = ? AND name = ? AND archived_at IS NULL`,
+             WHERE id = ? AND owner_user_id = ? AND write_token = ? AND archived_at IS NULL`,
           )
-          .bind(existing.name, now, menuSetId, ownerUserId, writeMarker);
+          .bind(now, menuSetId, ownerUserId, writeToken);
 
         const results = await db.batch([claimStmt, clearStmt, setStmt]);
         if (!results[0].success || results[0].meta.changes === 0) {

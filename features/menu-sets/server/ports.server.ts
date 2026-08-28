@@ -16,7 +16,6 @@ export type MenuSetRepository = {
     ownerUserId: string;
     name: string;
     version: number;
-    isDefault: boolean;
     createdAt: number;
     updatedAt: number;
     items: {

@@ -143,7 +143,6 @@ export function createMenuSetService(
       const now = clock.nowSeconds();
       const menuSetId = idGenerator.uuid();
       const normalizedName = normalizeName(command.name);
-      const isFirst = activeCount === 0;
 
       const itemRecords = command.items.map((item, index) => ({
         id: idGenerator.uuid(),
@@ -160,7 +159,6 @@ export function createMenuSetService(
           ownerUserId,
           name: normalizedName,
           version: 1,
-          isDefault: isFirst,
           createdAt: now,
           updatedAt: now,
           items: itemRecords,
@@ -199,9 +197,6 @@ export function createMenuSetService(
         return { ok: false, error: makeError("INVALID_MENU_SET", "올바르지 않은 version입니다.") };
       }
 
-      const ownership = await ensureOwnership(menuSetId, ownerUserId);
-      if (!ownership.ok) return ownership;
-
       const nameError = validateMenuSetName(command.name);
       if (nameError) {
         return { ok: false, error: makeError("INVALID_MENU_SET", nameError.message) };
@@ -221,6 +216,9 @@ export function createMenuSetService(
         }
       }
 
+      const ownership = await ensureOwnership(menuSetId, ownerUserId);
+      if (!ownership.ok) return ownership;
+
       const current = ownership.data.menuSet;
       if (current.version !== command.version) {
         return {
@@ -229,25 +227,23 @@ export function createMenuSetService(
         };
       }
 
-      const existingItems = ownership.data.items;
-      const existingIdSet = new Set(existingItems.map((i) => i.id));
-
-      for (const item of command.items) {
-        if (item.id !== null && item.id !== undefined && item.id !== "") {
-          if (!existingIdSet.has(item.id)) {
-            return { ok: false, error: makeError("INVALID_MENU_SET", "존재하지 않는 메뉴 항목입니다.") };
-          }
-        }
-      }
-
+      const existingIdSet = new Set(ownership.data.items.map((item) => item.id));
       const seenIds = new Set<string>();
       for (const item of command.items) {
-        if (item.id !== null && item.id !== undefined && item.id !== "") {
-          if (seenIds.has(item.id)) {
-            return { ok: false, error: makeError("INVALID_MENU_SET", "중복된 메뉴 항목 ID입니다.") };
-          }
-          seenIds.add(item.id);
+        if (item.id === null || item.id === undefined || item.id === "") continue;
+        if (!existingIdSet.has(item.id)) {
+          return {
+            ok: false,
+            error: makeError("INVALID_MENU_SET", "존재하지 않는 메뉴 항목입니다."),
+          };
         }
+        if (seenIds.has(item.id)) {
+          return {
+            ok: false,
+            error: makeError("INVALID_MENU_SET", "중복된 메뉴 항목 ID입니다."),
+          };
+        }
+        seenIds.add(item.id);
       }
 
       const now = clock.nowSeconds();
@@ -293,17 +289,6 @@ export function createMenuSetService(
         return { ok: false, error: makeError("INVALID_MENU_SET", "올바르지 않은 version입니다.") };
       }
 
-      const ownership = await ensureOwnership(menuSetId, ownerUserId);
-      if (!ownership.ok) return ownership;
-
-      const current = ownership.data.menuSet;
-      if (current.version !== command.version) {
-        return {
-          ok: false,
-          error: makeError("MENU_SET_VERSION_CONFLICT", "다른 곳에서 메뉴판이 변경되었습니다."),
-        };
-      }
-
       const now = clock.nowSeconds();
       const result = await repository.archiveWithFallback(
         menuSetId,
@@ -329,9 +314,6 @@ export function createMenuSetService(
       menuSetId: string,
       ownerUserId: string,
     ): Promise<MenuSetServiceResult<MenuSetAggregate>> {
-      const ownership = await ensureOwnership(menuSetId, ownerUserId);
-      if (!ownership.ok) return ownership;
-
       const result = await repository.setDefault(menuSetId, ownerUserId);
       if (result.status === "notFound") {
         return { ok: false, error: makeError("MENU_SET_NOT_FOUND", "메뉴판을 찾을 수 없습니다.") };

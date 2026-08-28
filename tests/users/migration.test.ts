@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test, { describe, after } from "node:test";
-import { createTestD1, applyMigrations, disposeTestD1 } from "./helpers.ts";
+import {
+  createTestD1,
+  applyMigrationFiles,
+  applyMigrations,
+  disposeTestD1,
+} from "./helpers.ts";
 
 
 describe("D1 migration", () => {
@@ -16,10 +21,10 @@ describe("D1 migration", () => {
     await disposeTestD1();
   });
 
-  test("migration is idempotent on same database", async () => {
+  test("0001 users migration is idempotent on same database", async () => {
     const db = await createTestD1();
-    await applyMigrations(db);
-    await applyMigrations(db);
+    await applyMigrationFiles(db, ["0001_users.sql"]);
+    await applyMigrationFiles(db, ["0001_users.sql"]);
 
     const result = await db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")

@@ -54,9 +54,10 @@ describe("0011 migration", () => {
     assert.notEqual(trigger, null);
 
     const existing = await db
-      .prepare("SELECT name FROM menu_sets WHERE id = 'upgrade-set'")
-      .first<{ name: string }>();
+      .prepare("SELECT name, write_token FROM menu_sets WHERE id = 'upgrade-set'")
+      .first<{ name: string; write_token: string | null }>();
     assert.equal(existing?.name, "existing");
+    assert.equal(existing?.write_token, null);
 
     await disposeTestD1();
   });
