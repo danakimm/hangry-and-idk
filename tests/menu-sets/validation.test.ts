@@ -145,4 +145,9 @@ describe("menu set validation", () => {
     assert.equal(validateVersion(1.5), false);
     assert.equal(validateVersion(Number.MAX_SAFE_INTEGER + 1), false);
   });
+
+  test("validateVersion accepts large positive safe integers without an upper cap", () => {
+    assert.equal(validateVersion(2_147_483_647), true);
+    assert.equal(validateVersion(Number.MAX_SAFE_INTEGER), true);
+  });
 });

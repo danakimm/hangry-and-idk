@@ -74,6 +74,7 @@ export function isMenuSetResponse(value: unknown): value is MenuSetResponse {
     typeof obj.id !== "string" ||
     typeof obj.name !== "string" ||
     !Number.isSafeInteger(obj.version) ||
+    (obj.version as number) <= 0 ||
     typeof obj.isDefault !== "boolean" ||
     typeof obj.createdAt !== "number" ||
     typeof obj.updatedAt !== "number" ||
@@ -100,6 +101,11 @@ function isMenuSetError(value: unknown): value is MenuSetError {
     ERROR_CODES.has(error.code as MenuSetErrorCode) &&
     typeof error.message === "string"
   );
+}
+
+function isMutationSuccess(value: unknown): value is { ok: true } {
+  if (typeof value !== "object" || value === null) return false;
+  return (value as Record<string, unknown>).ok === true;
 }
 
 function isAbort(error: unknown, signal?: AbortSignal): boolean {
@@ -216,33 +222,18 @@ export function createMenuSetApiClient(
     },
 
     async deleteMenuSet(id, input, signal) {
-      try {
-        const response = await fetcher(`/api/menu-sets/${encodeURIComponent(id)}`, {
+      const result = await requestJson(
+        fetcher,
+        `/api/menu-sets/${encodeURIComponent(id)}`,
+        {
           method: "DELETE",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify(input),
           signal,
-        });
-        if (response.ok) return { ok: true };
-
-        const body: unknown = await response.json().catch(() => null);
-        return {
-          ok: false,
-          error: isMenuSetError(body)
-            ? body
-            : clientError("메뉴판을 보관하지 못했습니다."),
-          failure: "http",
-        };
-      } catch (error) {
-        const aborted = isAbort(error, signal);
-        return {
-          ok: false,
-          error: clientError(
-            aborted ? "요청이 취소되었습니다." : "서버에 연결하지 못했습니다.",
-          ),
-          failure: aborted ? "aborted" : "network",
-        };
-      }
+        },
+        isMutationSuccess,
+      );
+      return result.ok ? { ok: true } : result;
     },
 
     setDefaultMenuSet(id, signal) {

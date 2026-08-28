@@ -95,15 +95,23 @@ export function createMenuSetService(
     async list(
       ownerUserId: string,
     ): Promise<MenuSetServiceResult<MenuSetAggregate[]>> {
-      const aggregates = await repository.listByOwner(ownerUserId);
-      return { ok: true, data: aggregates };
+      try {
+        const aggregates = await repository.listByOwner(ownerUserId);
+        return { ok: true, data: aggregates };
+      } catch {
+        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판 목록을 불러오지 못했습니다.") };
+      }
     },
 
     async get(
       menuSetId: string,
       ownerUserId: string,
     ): Promise<MenuSetServiceResult<MenuSetAggregate>> {
-      return ensureOwnership(menuSetId, ownerUserId);
+      try {
+        return await ensureOwnership(menuSetId, ownerUserId);
+      } catch {
+        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판을 불러오지 못했습니다.") };
+      }
     },
 
     async create(
@@ -216,7 +224,12 @@ export function createMenuSetService(
         }
       }
 
-      const ownership = await ensureOwnership(menuSetId, ownerUserId);
+      let ownership: MenuSetServiceResult<MenuSetAggregate>;
+      try {
+        ownership = await ensureOwnership(menuSetId, ownerUserId);
+      } catch {
+        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판 저장에 실패했습니다.") };
+      }
       if (!ownership.ok) return ownership;
 
       const current = ownership.data.menuSet;
@@ -265,8 +278,11 @@ export function createMenuSetService(
           })),
         },
         now,
-      );
+      ).catch(() => ({ status: "internalError" as const }));
 
+      if (result.status === "internalError") {
+        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판 저장에 실패했습니다.") };
+      }
       if (result.status === "versionConflict") {
         return {
           ok: false,
@@ -295,8 +311,11 @@ export function createMenuSetService(
         ownerUserId,
         command.version,
         now,
-      );
+      ).catch(() => ({ status: "internalError" as const }));
 
+      if (result.status === "internalError") {
+        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판 보관에 실패했습니다.") };
+      }
       if (result.status === "versionConflict") {
         return {
           ok: false,
@@ -314,7 +333,12 @@ export function createMenuSetService(
       menuSetId: string,
       ownerUserId: string,
     ): Promise<MenuSetServiceResult<MenuSetAggregate>> {
-      const result = await repository.setDefault(menuSetId, ownerUserId);
+      const result = await repository.setDefault(menuSetId, ownerUserId)
+        .catch(() => ({ status: "internalError" as const }));
+
+      if (result.status === "internalError") {
+        return { ok: false, error: makeError("INTERNAL_ERROR", "기본 메뉴판 설정에 실패했습니다.") };
+      }
       if (result.status === "notFound") {
         return { ok: false, error: makeError("MENU_SET_NOT_FOUND", "메뉴판을 찾을 수 없습니다.") };
       }
@@ -328,7 +352,8 @@ export function createMenuSetService(
         };
       }
 
-      const aggregate = await repository.findByIdAndOwner(menuSetId, ownerUserId);
+      const aggregate = await repository.findByIdAndOwner(menuSetId, ownerUserId)
+        .catch(() => null);
       if (!aggregate) {
         return { ok: false, error: makeError("INTERNAL_ERROR", "기본 메뉴판 설정에 실패했습니다.") };
       }

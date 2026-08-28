@@ -102,7 +102,6 @@ export function validateVersion(version: unknown): version is number {
   return (
     typeof version === "number" &&
     Number.isSafeInteger(version) &&
-    version > 0 &&
-    version < 2_147_483_647
+    version > 0
   );
 }

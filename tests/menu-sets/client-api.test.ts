@@ -31,6 +31,8 @@ describe("menu-set client API", () => {
       isMenuSetResponse({ ...validMenuSet, version: 1.5 }),
       false,
     );
+    assert.equal(isMenuSetResponse({ ...validMenuSet, version: 0 }), false);
+    assert.equal(isMenuSetResponse({ ...validMenuSet, version: -1 }), false);
   });
 
   test("returns a controlled parse failure for malformed success JSON", async () => {
@@ -73,6 +75,15 @@ describe("menu-set client API", () => {
     const result = await api.fetchMenuSets(controller.signal);
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.failure, "aborted");
+  });
+
+  test("returns a controlled parse failure for malformed archive success", async () => {
+    const api = createMenuSetApiClient(async () =>
+      new Response("<html>bad gateway</html>", { status: 200 })
+    );
+    const result = await api.deleteMenuSet("set-1", { version: 1 });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.failure, "parse");
   });
 
   test("default mutation sends a JSON object and encodes the id", async () => {

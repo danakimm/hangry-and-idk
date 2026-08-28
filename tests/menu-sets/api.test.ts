@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after, before, describe } from "node:test";
 import { signSession } from "../../features/auth/server/session.server.ts";
 import {
+  handleMenuSetArchiveRequest,
   handleMenuSetCreateRequest,
   handleMenuSetDefaultRequest,
   handleMenuSetGetRequest,
@@ -122,6 +123,18 @@ describe("menu-set HTTP handlers", () => {
     });
     assert.equal(
       (await handleMenuSetCreateRequest(nonJson, runtimeEnv())).status,
+      400,
+    );
+
+    const disguisedNonJson = await mutationRequest(
+      "/api/menu-sets",
+      "POST",
+      "invalid-body-user",
+      validCreateBody(),
+      { "Content-Type": "text/plain; note=application/json" },
+    );
+    assert.equal(
+      (await handleMenuSetCreateRequest(disguisedNonJson, runtimeEnv())).status,
       400,
     );
 
@@ -316,6 +329,248 @@ describe("menu-set HTTP handlers", () => {
       created.id,
     );
     assert.equal(valid.status, 200);
+  });
+
+  test("limiter allow lets the mutation succeed", async () => {
+    let limitCalls = 0;
+    const allowLimiter = {
+      async limit() {
+        limitCalls += 1;
+        return { success: true };
+      },
+    };
+    const response = await handleMenuSetCreateRequest(
+      await mutationRequest(
+        "/api/menu-sets",
+        "POST",
+        "limiter-allow-user",
+        validCreateBody("limiter allow"),
+      ),
+      runtimeEnv({ APP_WRITE_RATE_LIMITER: allowLimiter }),
+    );
+    assert.equal(response.status, 201);
+    assert.equal(limitCalls, 1);
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+  });
+
+  test("limiter deny returns 429 with Retry-After", async () => {
+    const denyLimiter = {
+      async limit() {
+        return { success: false };
+      },
+    };
+    const response = await handleMenuSetCreateRequest(
+      await mutationRequest(
+        "/api/menu-sets",
+        "POST",
+        "limiter-deny-user",
+        validCreateBody("limiter deny"),
+      ),
+      runtimeEnv({ APP_WRITE_RATE_LIMITER: denyLimiter }),
+    );
+    assert.equal(response.status, 429);
+    assert.equal((await response.json()).error.code, "RATE_LIMITED");
+    assert.equal(response.headers.get("Retry-After"), "60");
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+  });
+
+  test("limiter throw returns controlled 503", async () => {
+    const throwingLimiter = {
+      async limit() {
+        throw new Error("rate limiter unavailable");
+      },
+    };
+    const response = await handleMenuSetCreateRequest(
+      await mutationRequest(
+        "/api/menu-sets",
+        "POST",
+        "limiter-throw-user",
+        validCreateBody("limiter throw"),
+      ),
+      runtimeEnv({ APP_WRITE_RATE_LIMITER: throwingLimiter }),
+    );
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error.code, "INTERNAL_ERROR");
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+    const serialized = JSON.stringify(body);
+    assert.doesNotMatch(serialized, /rate limiter unavailable/);
+  });
+
+  test("malformed item types in mutation return 400 without leaking", async () => {
+    const cookie = await sessionCookie("malformed-item-user");
+    const headers = { Cookie: cookie, Origin: APP_ORIGIN, "Content-Type": "application/json" };
+    const cases: Array<{ label: string; payload: unknown }> = [
+      { label: "id as number", payload: { name: "x", items: [{ id: 1, name: "a", emoji: "🍚", color: "#000000" }] } },
+      { label: "id as boolean", payload: { name: "x", items: [{ id: false, name: "a", emoji: "🍚", color: "#000000" }] } },
+      { label: "id as empty string", payload: { name: "x", items: [{ id: "", name: "a", emoji: "🍚", color: "#000000" }] } },
+      { label: "name as number", payload: { name: "x", items: [{ id: null, name: 1, emoji: "🍚", color: "#000000" }] } },
+      { label: "emoji as boolean", payload: { name: "x", items: [{ id: null, name: "a", emoji: true, color: "#000000" }] } },
+      { label: "color as null", payload: { name: "x", items: [{ id: null, name: "a", emoji: "🍚", color: null }] } },
+      { label: "item as array", payload: { name: "x", items: [["a", "b"]] } },
+      { label: "item as string", payload: { name: "x", items: ["a"] } },
+      { label: "items missing", payload: { name: "x" } },
+      { label: "items not array", payload: { name: "x", items: {} } },
+    ];
+
+    for (const { label, payload } of cases) {
+      const response = await handleMenuSetCreateRequest(
+        new Request(`${APP_ORIGIN}/api/menu-sets`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        }),
+        runtimeEnv(),
+      );
+      assert.equal(response.status, 400, label);
+      assert.equal(
+        (await response.json()).error.code,
+        "INVALID_MENU_SET",
+        label,
+      );
+      assert.equal(
+        response.headers.get("Cache-Control"),
+        "private, no-store",
+        label,
+      );
+    }
+  });
+
+  test("non-positive and oversized versions are rejected with 400", async () => {
+    const cookie = await sessionCookie("bad-version-user");
+    const headers = { Cookie: cookie, Origin: APP_ORIGIN, "Content-Type": "application/json" };
+
+    const negative = await handleMenuSetUpdateRequest(
+      new Request(`${APP_ORIGIN}/api/menu-sets/x`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ version: -1, name: "x", items: [] }),
+      }),
+      runtimeEnv(),
+      "x",
+    );
+    assert.equal(negative.status, 400);
+    assert.equal((await negative.json()).error.code, "INVALID_MENU_SET");
+    assert.equal(negative.headers.get("Cache-Control"), "private, no-store");
+
+    const zero = await handleMenuSetUpdateRequest(
+      new Request(`${APP_ORIGIN}/api/menu-sets/x`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ version: 0, name: "x", items: [] }),
+      }),
+      runtimeEnv(),
+      "x",
+    );
+    assert.equal(zero.status, 400);
+    assert.equal(zero.headers.get("Cache-Control"), "private, no-store");
+
+    const stringVersion = await handleMenuSetUpdateRequest(
+      new Request(`${APP_ORIGIN}/api/menu-sets/x`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ version: "1", name: "x", items: [] }),
+      }),
+      runtimeEnv(),
+      "x",
+    );
+    assert.equal(stringVersion.status, 400);
+    assert.equal(stringVersion.headers.get("Cache-Control"), "private, no-store");
+
+    const hugeVersion = await handleMenuSetUpdateRequest(
+      new Request(`${APP_ORIGIN}/api/menu-sets/x`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ version: Number.MAX_SAFE_INTEGER + 2, name: "x", items: [] }),
+      }),
+      runtimeEnv(),
+      "x",
+    );
+    assert.equal(hugeVersion.status, 400);
+    assert.equal(hugeVersion.headers.get("Cache-Control"), "private, no-store");
+  });
+
+  test("archive request rejects malformed body without DB access", async () => {
+    const cookie = await sessionCookie("archive-bad-body-user");
+    const headers = { Cookie: cookie, Origin: APP_ORIGIN, "Content-Type": "application/json" };
+    const response = await handleMenuSetArchiveRequest(
+      new Request(`${APP_ORIGIN}/api/menu-sets/x`, {
+        method: "DELETE",
+        headers,
+        body: JSON.stringify({ version: "1.5" }),
+      }),
+      runtimeEnv(),
+      "x",
+    );
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error.code, "INVALID_MENU_SET");
+    assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+  });
+
+  test("DB errors during mutation do not expose stack or internal details", async () => {
+    const { createMenuSetService } = await import(
+      "../../features/menu-sets/server/service.server.ts"
+    );
+    const { defaultClock, defaultIdGenerator } = await import(
+      "../../server/db/types.server.ts"
+    );
+    const internalMessage = "FATAL: stack trace would be here\n  at line 42";
+    const failingRepo = {
+      listByOwner: async () => { throw new Error(internalMessage); },
+      findByIdAndOwner: async () => { throw new Error(internalMessage); },
+      countActiveByOwner: async () => { throw new Error(internalMessage); },
+      create: async () => { throw new Error(internalMessage); },
+      updateAggregate: async () => { throw new Error(internalMessage); },
+      archiveWithFallback: async () => { throw new Error(internalMessage); },
+      setDefault: async () => { throw new Error(internalMessage); },
+    };
+    const service = createMenuSetService({
+      repository: failingRepo,
+      clock: defaultClock,
+      idGenerator: defaultIdGenerator,
+    });
+
+    const list = await service.list("db-error-user");
+    assert.equal(list.ok, false);
+    if (!list.ok) {
+      assert.equal(list.error.code, "INTERNAL_ERROR");
+      assert.doesNotMatch(list.error.message, /FATAL/);
+    }
+
+    const get = await service.get("x", "db-error-user");
+    assert.equal(get.ok, false);
+    if (!get.ok) {
+      assert.equal(get.error.code, "INTERNAL_ERROR");
+      assert.doesNotMatch(get.error.message, /FATAL/);
+    }
+
+    const update = await service.update("x", "db-error-user", {
+      version: 1,
+      name: "x",
+      items: [
+        { id: null, name: "a", emoji: "🍚", color: "#000000" },
+        { id: null, name: "b", emoji: "🥟", color: "#f6c84a" },
+      ],
+    });
+    assert.equal(update.ok, false);
+    if (!update.ok) {
+      assert.equal(update.error.code, "INTERNAL_ERROR");
+      assert.doesNotMatch(update.error.message, /FATAL/);
+    }
+
+    const archive = await service.archive("x", "db-error-user", { version: 1 });
+    assert.equal(archive.ok, false);
+    if (!archive.ok) {
+      assert.equal(archive.error.code, "INTERNAL_ERROR");
+      assert.doesNotMatch(archive.error.message, /FATAL/);
+    }
+
+    const setDefault = await service.setDefault("x", "db-error-user");
+    assert.equal(setDefault.ok, false);
+    if (!setDefault.ok) {
+      assert.equal(setDefault.error.code, "INTERNAL_ERROR");
+      assert.doesNotMatch(setDefault.error.message, /FATAL/);
+    }
   });
 
   after(async () => {

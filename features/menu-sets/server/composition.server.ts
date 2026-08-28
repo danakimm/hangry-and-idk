@@ -54,7 +54,8 @@ export async function resolveMenuSetContext(
 
   if (options.requireBody) {
     const contentType = request.headers.get("Content-Type") ?? "";
-    if (!contentType.includes("application/json")) {
+    const mediaType = contentType.split(";", 1)[0]?.trim().toLowerCase();
+    if (mediaType !== "application/json") {
       return {
         ok: false,
         response: apiError(400, "INVALID_MENU_SET", "Content-Type이 올바르지 않습니다."),
