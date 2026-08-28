@@ -462,9 +462,24 @@ describe("menu_sets atomicity and concurrency", async () => {
     assert.equal(successes.length, 2);
     assert.equal(failures.length, 0);
 
-    const list = await repo.listByOwner("owner-first");
-    const defaults = list.filter((a) => a.menuSet.isDefault);
-    assert.equal(defaults.length, 1, "Exactly one should be default");
+    const activeRows = await db
+      .prepare(
+        `SELECT id, is_default
+         FROM menu_sets
+         WHERE owner_user_id = ? AND archived_at IS NULL
+         ORDER BY id`,
+      )
+      .bind("owner-first")
+      .all<{ id: string; is_default: number }>();
+    assert.deepEqual(
+      activeRows.results.map((row) => row.id),
+      ["ms-first-1", "ms-first-2"],
+    );
+    assert.equal(
+      activeRows.results.filter((row) => row.is_default === 1).length,
+      1,
+      "Exactly one raw active row should be default",
+    );
   });
 
   test("create before last-default archive leaves the created set as fallback default", async () => {
