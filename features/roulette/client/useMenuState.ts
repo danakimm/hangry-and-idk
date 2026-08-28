@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import type { MenuItem } from "../shared/contract.ts";
 import { palette } from "../shared/constants.ts";
 
+type ReplaceableMenuItem = Omit<MenuItem, "id"> & { id: string | null };
+
 export const initialMenus: MenuItem[] = [
   { id: "default-1", name: "한식", emoji: "🍚", color: palette[0] },
   { id: "default-2", name: "중식", emoji: "🥟", color: palette[1] },
@@ -43,5 +45,13 @@ export function useMenuState() {
     setResetKey((k) => k + 1);
   }, []);
 
-  return { menus, addMenu, removeMenu, resetMenus, resetKey };
+  const replaceMenus = useCallback((items: ReplaceableMenuItem[]) => {
+    setMenus(items.map((item) => ({
+      ...item,
+      id: item.id ?? crypto.randomUUID(),
+    })));
+    setResetKey((k) => k + 1);
+  }, []);
+
+  return { menus, addMenu, removeMenu, resetMenus, replaceMenus, resetKey };
 }

@@ -16,8 +16,10 @@ type MenuSetEditorProps = {
   draftName: string;
   draftItems: MenuSetItemRequest[];
   saveStatus: SaveStatus;
+  isBusy: boolean;
   onDraftChange: (name: string, items: MenuSetItemRequest[]) => void;
   onSave: () => void;
+  onReset: () => void;
 };
 
 export default function MenuSetEditor({
@@ -25,21 +27,26 @@ export default function MenuSetEditor({
   draftName,
   draftItems,
   saveStatus,
+  isBusy,
   onDraftChange,
   onSave,
+  onReset,
 }: MenuSetEditorProps) {
+  const disabled = isBusy || saveStatus === "conflict";
+
   const updateItem = useCallback(
     (index: number, field: "name" | "emoji" | "color", value: string) => {
+      if (disabled) return;
       const nextItems = draftItems.map((item, itemIndex) =>
         itemIndex === index ? { ...item, [field]: value } : item
       );
       onDraftChange(draftName, nextItems);
     },
-    [draftItems, draftName, onDraftChange],
+    [draftItems, draftName, onDraftChange, disabled],
   );
 
   const addItem = useCallback(() => {
-    if (draftItems.length >= MENU_SET_ITEMS_MAX) return;
+    if (disabled || draftItems.length >= MENU_SET_ITEMS_MAX) return;
     onDraftChange(draftName, [
       ...draftItems,
       {
@@ -49,15 +56,18 @@ export default function MenuSetEditor({
         color: palette[draftItems.length % palette.length],
       },
     ]);
-  }, [draftItems, draftName, onDraftChange]);
+  }, [draftItems, draftName, onDraftChange, disabled]);
 
   const removeItem = useCallback((index: number) => {
-    if (draftItems.length <= MENU_SET_ITEMS_MIN) return;
+    if (disabled || draftItems.length <= MENU_SET_ITEMS_MIN) return;
     onDraftChange(
       draftName,
       draftItems.filter((_, itemIndex) => itemIndex !== index),
     );
-  }, [draftItems, draftName, onDraftChange]);
+  }, [draftItems, draftName, onDraftChange, disabled]);
+
+  const saveButtonText = saveStatus === "saving" ? "저장 중..." : saveStatus === "offline" ? "다시 저장" : "저장";
+  const canSave = saveStatus === "dirty" || saveStatus === "offline";
 
   return (
     <div className="menu-set-editor" data-menu-set-id={menuSet.id}>
@@ -67,8 +77,9 @@ export default function MenuSetEditor({
           id="menu-set-name"
           type="text"
           value={draftName}
-          onChange={(event) => onDraftChange(event.target.value, draftItems)}
+          onChange={(event) => !disabled && onDraftChange(event.target.value, draftItems)}
           maxLength={MENU_SET_NAME_MAX_LENGTH}
+          disabled={disabled}
         />
       </div>
       <div className="menu-set-items">
@@ -80,6 +91,7 @@ export default function MenuSetEditor({
               onChange={(event) => updateItem(index, "name", event.target.value)}
               maxLength={MENU_ITEM_NAME_MAX_LENGTH}
               placeholder="메뉴 이름"
+              disabled={disabled}
             />
             <input
               type="text"
@@ -87,14 +99,16 @@ export default function MenuSetEditor({
               onChange={(event) => updateItem(index, "emoji", event.target.value)}
               maxLength={8}
               placeholder="이모지"
+              disabled={disabled}
             />
             <input
               type="color"
               value={item.color}
               onChange={(event) => updateItem(index, "color", event.target.value)}
+              disabled={disabled}
             />
             {draftItems.length > MENU_SET_ITEMS_MIN && (
-              <button type="button" onClick={() => removeItem(index)}>
+              <button type="button" onClick={() => removeItem(index)} disabled={disabled}>
                 삭제
               </button>
             )}
@@ -102,17 +116,16 @@ export default function MenuSetEditor({
         ))}
       </div>
       {draftItems.length < MENU_SET_ITEMS_MAX && (
-        <button type="button" onClick={addItem}>
+        <button type="button" onClick={addItem} disabled={disabled}>
           메뉴 추가
         </button>
       )}
       <div className="menu-set-actions">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saveStatus === "saving"}
-        >
-          {saveStatus === "saving" ? "저장 중..." : "저장"}
+        <button type="button" onClick={onSave} disabled={disabled || !canSave}>
+          {saveButtonText}
+        </button>
+        <button type="button" onClick={onReset} disabled={disabled}>
+          저장본으로 되돌리기
         </button>
       </div>
     </div>

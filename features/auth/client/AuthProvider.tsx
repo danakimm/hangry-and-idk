@@ -29,6 +29,7 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
+  const [interactiveLoginVersion, setInteractiveLoginVersion] = useState(0);
   const registryRef = useRef(createCleanupRegistry());
   const initializedRef = useRef(false);
 
@@ -64,20 +65,33 @@ export function AuthProvider({
   const login = useCallback(async () => {
     await loginWithGoogle();
     await refreshSession();
+    setInteractiveLoginVersion((prev) => prev + 1);
   }, [refreshSession]);
 
   const logout = useCallback(async () => {
-    await logoutSession();
     runCleanups();
-    setUser(null);
-    setStatus("anonymous");
-  }, [runCleanups]);
+    setStatus("loading");
+    try {
+      await logoutSession();
+      setUser(null);
+      setStatus("anonymous");
+    } catch (error) {
+      try {
+        await refreshSession();
+      } catch {
+        setUser(null);
+        setStatus("anonymous");
+      }
+      throw error;
+    }
+  }, [refreshSession, runCleanups]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       status,
       menuSetsEnabled,
+      interactiveLoginVersion,
       login,
       logout,
       refreshSession,
@@ -87,6 +101,7 @@ export function AuthProvider({
       user,
       status,
       menuSetsEnabled,
+      interactiveLoginVersion,
       login,
       logout,
       refreshSession,

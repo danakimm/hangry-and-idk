@@ -6,6 +6,8 @@ type MenuSetSelectorProps = {
   menuSets: MenuSetResponse[];
   currentId: string | null;
   isLoading: boolean;
+  disabled: boolean;
+  createDisabled: boolean;
   onSelect: (id: string) => void;
   onCreateNew: () => void;
 };
@@ -14,6 +16,8 @@ export default function MenuSetSelector({
   menuSets,
   currentId,
   isLoading,
+  disabled,
+  createDisabled,
   onSelect,
   onCreateNew,
 }: MenuSetSelectorProps) {
@@ -25,7 +29,7 @@ export default function MenuSetSelector({
     return (
       <div className="menu-set-selector empty">
         <span>저장된 메뉴판이 없습니다.</span>
-        <button type="button" onClick={onCreateNew}>
+        <button type="button" onClick={onCreateNew} disabled={disabled || createDisabled}>
           새 메뉴판 만들기
         </button>
       </div>
@@ -41,6 +45,7 @@ export default function MenuSetSelector({
         id="menu-set-select"
         value={currentId ?? ""}
         onChange={(e) => onSelect(e.target.value)}
+        disabled={disabled}
       >
         {currentId === null && (
           <option value="" disabled>
@@ -54,7 +59,7 @@ export default function MenuSetSelector({
           </option>
         ))}
       </select>
-      <button type="button" onClick={onCreateNew}>
+      <button type="button" onClick={onCreateNew} disabled={disabled || createDisabled}>
         + 새 메뉴판
       </button>
     </div>
