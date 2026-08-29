@@ -15,9 +15,9 @@ import { useMenuState } from "@/features/roulette/client/useMenuState";
 import { useAuth } from "@/features/auth/client/AuthProvider";
 import { useMenuSets } from "@/features/menu-sets/client/hooks";
 import MenuSetSelector from "@/features/menu-sets/client/MenuSetSelector";
-import MenuSetEditor from "@/features/menu-sets/client/MenuSetEditor";
 import MenuSetSaveStatus from "@/features/menu-sets/client/MenuSetSaveStatus";
 import type { MenuSetItemRequest } from "@/features/menu-sets/shared/contract";
+import { MENU_SET_NAME_MAX_LENGTH } from "@/features/menu-sets/shared/constants";
 
 type ActiveMenuSource = "anonymous" | "menu-set";
 
@@ -337,6 +337,23 @@ export default function Home() {
     [menuSets, clearRestaurantSearch],
   );
 
+  const handleMenuSetNameChange = useCallback(
+    (name: string) => {
+      handleMenuSetDraftChange(name, menuSets.draftItems);
+    },
+    [handleMenuSetDraftChange, menuSets.draftItems],
+  );
+
+  const handleMenuSetItemChange = useCallback(
+    (index: number, field: "name" | "emoji" | "color", value: string) => {
+      const nextItems = menuSets.draftItems.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      );
+      handleMenuSetDraftChange(menuSets.draftName, nextItems);
+    },
+    [handleMenuSetDraftChange, menuSets.draftItems, menuSets.draftName],
+  );
+
   const handleMenuSetSave = useCallback(() => {
     void menuSets.saveCurrent();
   }, [menuSets]);
@@ -548,27 +565,43 @@ export default function Home() {
           onSpinComplete={handleSpinComplete}
         />
 
-        {activeMenuSource === "menu-set" && menuSets.currentMenuSet ? (
-          <MenuSetEditor
-            menuSet={menuSets.currentMenuSet}
-            draftName={menuSets.draftName}
-            draftItems={menuSets.draftItems}
-            saveStatus={menuSets.saveStatus}
-            isBusy={isBusy}
-            onDraftChange={handleMenuSetDraftChange}
-            onSave={handleMenuSetSave}
-            onReset={handleResetMenus}
-          />
-        ) : (
-          <MenuEditor
-            menus={rouletteMenus}
-            isSpinning={isSpinning}
-            resetKey={anonymousMenuState.resetKey}
-            onAdd={handleAddMenu}
-            onRemove={handleRemoveMenu}
-            onReset={handleResetMenus}
-          />
-        )}
+        <MenuEditor
+          menus={rouletteMenus}
+          disabled={
+            activeMenuSource === "menu-set"
+              ? isBusy || menuSets.saveStatus === "conflict"
+              : isSpinning
+          }
+          resetKey={
+            activeMenuSource === "menu-set"
+              ? rouletteResetKey
+              : anonymousMenuState.resetKey
+          }
+          onAdd={handleAddMenu}
+          onRemove={handleRemoveMenu}
+          onReset={handleResetMenus}
+          savedMenu={
+            activeMenuSource === "menu-set" && menuSets.currentMenuSet
+              ? {
+                  id: menuSets.currentMenuSet.id,
+                  name: menuSets.draftName,
+                  nameMaxLength: MENU_SET_NAME_MAX_LENGTH,
+                  saveLabel:
+                    menuSets.saveStatus === "saving"
+                      ? "저장 중..."
+                      : menuSets.saveStatus === "offline"
+                        ? "다시 저장"
+                        : "저장",
+                  canSave:
+                    menuSets.saveStatus === "dirty" ||
+                    menuSets.saveStatus === "offline",
+                  onNameChange: handleMenuSetNameChange,
+                  onItemChange: handleMenuSetItemChange,
+                  onSave: handleMenuSetSave,
+                }
+              : undefined
+          }
+        />
       </section>
 
       <RouletteResult
