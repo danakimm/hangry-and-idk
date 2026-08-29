@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
+import { env } from "cloudflare:workers";
 import { AuthProvider } from "@/features/auth/client/AuthProvider";
+import type { AppRuntimeEnv } from "@/server/runtime-env.server";
+import { isFeatureEnabled } from "@/server/runtime-env.server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -46,13 +49,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const runtimeEnv = env as AppRuntimeEnv;
+  const menuSetsEnabled = isFeatureEnabled(runtimeEnv.FEATURE_MENU_SETS);
+
   return (
     <html lang="ko">
       <head>
         <link rel="icon" href="/icon.png" type="image/png" sizes="128x128" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider menuSetsEnabled={menuSetsEnabled}>{children}</AuthProvider>
       </body>
     </html>
   );

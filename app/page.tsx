@@ -1,20 +1,51 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { parseRestaurantSearchResponse } from "@/features/restaurants/client/api";
 import type { Restaurant } from "@/features/restaurants/shared/contract";
 import type { Coordinates } from "@/features/restaurants/client/types";
 import type { MenuItem } from "@/features/roulette/shared/contract";
-import { LOCATION_TIMEOUT_MS } from "@/features/roulette/shared/constants";
+import { LOCATION_TIMEOUT_MS, palette } from "@/features/roulette/shared/constants";
 import MenuEditor from "@/features/roulette/client/MenuEditor";
 import RouletteWheel from "@/features/roulette/client/RouletteWheel";
 import type { RouletteWheelHandle } from "@/features/roulette/client/RouletteWheel";
 import RouletteResult from "@/features/roulette/client/RouletteResult";
 import UserMenu from "@/features/auth/client/UserMenu";
 import { useMenuState } from "@/features/roulette/client/useMenuState";
+import { useAuth } from "@/features/auth/client/AuthProvider";
+import { useMenuSets } from "@/features/menu-sets/client/hooks";
+import MenuSetSelector from "@/features/menu-sets/client/MenuSetSelector";
+import MenuSetEditor from "@/features/menu-sets/client/MenuSetEditor";
+import MenuSetSaveStatus from "@/features/menu-sets/client/MenuSetSaveStatus";
+import type { MenuSetItemRequest } from "@/features/menu-sets/shared/contract";
+
+type ActiveMenuSource = "anonymous" | "menu-set";
 
 export default function Home() {
-  const { menus, addMenu, removeMenu, resetMenus, resetKey } = useMenuState();
+  const anonymousMenuState = useMenuState();
+  const { status, interactiveLoginVersion, onLogoutCleanup } = useAuth();
+  const isAuthenticated = status === "authenticated";
+
+  const menuSets = useMenuSets();
+
+  const [activeMenuSource, setActiveMenuSource] = useState<ActiveMenuSource>("anonymous");
+  const [rouletteResetKey, setRouletteResetKey] = useState(0);
+  const [showFirstLoginPrompt, setShowFirstLoginPrompt] = useState(false);
+  const [firstLoginName, setFirstLoginName] = useState("");
+  const [newMenuSetName, setNewMenuSetName] = useState("");
+  const [isNewMenuSetFormOpen, setIsNewMenuSetFormOpen] = useState(false);
+  const prevLoginVersionRef = useRef(0);
+
+  const rouletteMenus: MenuItem[] =
+    activeMenuSource === "menu-set" && menuSets.currentMenuSet
+      ? menuSets.draftItems.map((item, index) => ({
+          id: item.id ?? `draft-new-${index}`,
+          name: item.name,
+          emoji: item.emoji,
+          color: item.color,
+        }))
+      : anonymousMenuState.menus;
+
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
@@ -30,12 +61,77 @@ export default function Home() {
   const wheelRef = useRef<RouletteWheelHandle>(null);
   const restaurantRequestIdRef = useRef(0);
 
+  const isBusy = menuSets.isLoading || menuSets.isMutating || isSpinning;
+
+  useEffect(() => {
+    if (
+      menuSets.enabled &&
+      interactiveLoginVersion > 0 &&
+      interactiveLoginVersion !== prevLoginVersionRef.current
+    ) {
+      prevLoginVersionRef.current = interactiveLoginVersion;
+      setActiveMenuSource("anonymous");
+      setShowFirstLoginPrompt(true);
+    }
+  }, [interactiveLoginVersion, menuSets.enabled]);
+
+  const confirmDiscardDraft = useCallback(() => {
+    if (menuSets.saveStatus === "dirty" || menuSets.saveStatus === "offline" || menuSets.saveStatus === "conflict") {
+      return confirm("저장되지 않은 변경 사항이 있습니다. 계속하시겠습니까?");
+    }
+    return true;
+  }, [menuSets.saveStatus]);
+
+  const handleFirstLoginSaveAsNew = useCallback(async () => {
+    if (!firstLoginName.trim()) return;
+    const items: MenuSetItemRequest[] = anonymousMenuState.menus.map((menu) => ({
+      id: null,
+      name: menu.name,
+      emoji: menu.emoji,
+      color: menu.color,
+    }));
+    const created = await menuSets.createNew(firstLoginName.trim(), items);
+    if (!created) return;
+    setActiveMenuSource("menu-set");
+    setShowFirstLoginPrompt(false);
+    setFirstLoginName("");
+    setRouletteResetKey((key) => key + 1);
+  }, [firstLoginName, anonymousMenuState.menus, menuSets]);
+
+  const handleFirstLoginLoadDefault = useCallback(() => {
+    const defaultMenuSet = menuSets.menuSets.find((item) => item.isDefault);
+    if (!defaultMenuSet) return;
+    menuSets.selectMenuSet(defaultMenuSet.id);
+    setActiveMenuSource("menu-set");
+    setShowFirstLoginPrompt(false);
+    setRouletteResetKey((key) => key + 1);
+  }, [menuSets]);
+
+  const handleFirstLoginKeepAnonymous = useCallback(() => {
+    setActiveMenuSource("anonymous");
+    setShowFirstLoginPrompt(false);
+  }, []);
+
   const clearRestaurantSearch = useCallback(() => {
     restaurantRequestIdRef.current += 1;
     setRestaurants([]);
     setRestaurantStatus("idle");
     setRestaurantMessage("");
   }, []);
+
+  useEffect(() => onLogoutCleanup(() => {
+    setActiveMenuSource("anonymous");
+    setShowFirstLoginPrompt(false);
+    setFirstLoginName("");
+    setIsNewMenuSetFormOpen(false);
+    setNewMenuSetName("");
+    setSelected(null);
+    setIsSpinning(false);
+    setCoordinates(null);
+    setLocationStatus("idle");
+    wheelRef.current?.resetRotation();
+    clearRestaurantSearch();
+  }), [onLogoutCleanup, clearRestaurantSearch]);
 
   const searchRestaurants = useCallback(
     async (
@@ -97,33 +193,71 @@ export default function Home() {
 
   const handleAddMenu = useCallback(
     (name: string, emoji: string) => {
-      addMenu(name, emoji);
+      if (activeMenuSource === "menu-set" && menuSets.currentMenuSet) {
+        menuSets.updateDraft(menuSets.draftName, [
+          ...menuSets.draftItems,
+          {
+            id: null,
+            name,
+            emoji,
+            color: palette[menuSets.draftItems.length % palette.length],
+          },
+        ]);
+      } else {
+        anonymousMenuState.addMenu(name, emoji);
+      }
       setSelected(null);
       clearRestaurantSearch();
     },
-    [addMenu, clearRestaurantSearch],
+    [activeMenuSource, menuSets, anonymousMenuState, clearRestaurantSearch],
   );
 
   const handleRemoveMenu = useCallback(
     (id: string) => {
-      if (menus.length <= 2 || isSpinning) return;
-      removeMenu(id);
+      if (rouletteMenus.length <= 2 || isSpinning) return;
+      if (activeMenuSource === "menu-set" && menuSets.currentMenuSet) {
+        menuSets.updateDraft(
+          menuSets.draftName,
+          menuSets.draftItems.filter(
+            (item, index) => (item.id ?? `draft-new-${index}`) !== id,
+          ),
+        );
+      } else {
+        anonymousMenuState.removeMenu(id);
+      }
       setSelected(null);
       wheelRef.current?.resetRotation();
       clearRestaurantSearch();
     },
-    [menus.length, isSpinning, removeMenu, clearRestaurantSearch],
+    [
+      rouletteMenus.length,
+      isSpinning,
+      activeMenuSource,
+      menuSets,
+      anonymousMenuState,
+      clearRestaurantSearch,
+    ],
   );
 
   const handleResetMenus = useCallback(() => {
     if (isSpinning) return;
-    resetMenus();
+    if (activeMenuSource === "menu-set" && menuSets.currentMenuSet) {
+      menuSets.resetCurrentDraft();
+    } else {
+      anonymousMenuState.resetMenus();
+    }
     setSelected(null);
     setCoordinates(null);
     setLocationStatus("idle");
     wheelRef.current?.resetRotation();
     clearRestaurantSearch();
-  }, [isSpinning, resetMenus, clearRestaurantSearch]);
+  }, [
+    isSpinning,
+    activeMenuSource,
+    menuSets,
+    anonymousMenuState,
+    clearRestaurantSearch,
+  ]);
 
   const requestLocation = useCallback(() => {
     if (!selected) return;
@@ -160,6 +294,96 @@ export default function Home() {
     );
   }, [selected, coordinates, searchRestaurants]);
 
+  const handleMenuSetSelect = useCallback((id: string) => {
+    if (isBusy) return;
+    if (!confirmDiscardDraft()) return;
+    if (!menuSets.selectMenuSet(id)) return;
+    setActiveMenuSource("menu-set");
+    setRouletteResetKey((key) => key + 1);
+    setSelected(null);
+    clearRestaurantSearch();
+  }, [menuSets, clearRestaurantSearch, isBusy, confirmDiscardDraft]);
+
+  const handleMenuSetCreateNew = useCallback(async () => {
+    if (isBusy || menuSets.saveStatus === "conflict" || !newMenuSetName.trim()) return;
+    if (activeMenuSource === "menu-set" && !confirmDiscardDraft()) return;
+    const items: MenuSetItemRequest[] = rouletteMenus.map((menu) => ({
+      id: null,
+      name: menu.name,
+      emoji: menu.emoji,
+      color: menu.color,
+    }));
+    const created = await menuSets.createNew(newMenuSetName.trim(), items);
+    if (!created) return;
+    setActiveMenuSource("menu-set");
+    setIsNewMenuSetFormOpen(false);
+    setNewMenuSetName("");
+    setRouletteResetKey((key) => key + 1);
+  }, [
+    activeMenuSource,
+    confirmDiscardDraft,
+    isBusy,
+    menuSets,
+    newMenuSetName,
+    rouletteMenus,
+  ]);
+
+  const handleMenuSetDraftChange = useCallback(
+    (name: string, items: MenuSetItemRequest[]) => {
+      menuSets.updateDraft(name, items);
+      setSelected(null);
+      clearRestaurantSearch();
+    },
+    [menuSets, clearRestaurantSearch],
+  );
+
+  const handleMenuSetSave = useCallback(() => {
+    void menuSets.saveCurrent();
+  }, [menuSets]);
+
+  const handleMenuSetArchive = useCallback(() => {
+    if (isBusy || menuSets.saveStatus === "conflict") return;
+    if (!confirm("이 메뉴판을 보관하시겠습니까?")) return;
+    if (!confirmDiscardDraft()) return;
+    const snapshot = menuSets.draftItems.map((item) => ({
+      id: item.id ?? crypto.randomUUID(),
+      name: item.name,
+      emoji: item.emoji,
+      color: item.color,
+    }));
+    void menuSets.archiveCurrent().then((success) => {
+      if (success) {
+        anonymousMenuState.replaceMenus(snapshot);
+        setActiveMenuSource("anonymous");
+        setSelected(null);
+        setCoordinates(null);
+        setLocationStatus("idle");
+        clearRestaurantSearch();
+      }
+    });
+  }, [
+    isBusy,
+    menuSets,
+    anonymousMenuState,
+    clearRestaurantSearch,
+    confirmDiscardDraft,
+  ]);
+
+  const handleMenuSetDefault = useCallback(() => {
+    if (isBusy || menuSets.saveStatus === "conflict") return;
+    void menuSets.setDefault();
+  }, [isBusy, menuSets]);
+
+  const handleSwitchToAnonymous = useCallback(() => {
+    if (isBusy) return;
+    if (!confirmDiscardDraft()) return;
+    menuSets.resetCurrentDraft();
+    setActiveMenuSource("anonymous");
+    setRouletteResetKey((key) => key + 1);
+    setSelected(null);
+    clearRestaurantSearch();
+  }, [isBusy, confirmDiscardDraft, clearRestaurantSearch, menuSets]);
+
   return (
     <main>
       <header className="site-header">
@@ -190,22 +414,161 @@ export default function Home() {
         </p>
       </section>
 
+      {isAuthenticated && menuSets.enabled && showFirstLoginPrompt && (
+        <section className="first-login-prompt" aria-label="메뉴판 전환">
+          <div className="prompt-content">
+            <h3>메뉴판을 어떻게 할까요?</h3>
+            <p>현재 편집 중인 메뉴를 새 메뉴판으로 저장하거나, 서버에서 불러올 수 있습니다.</p>
+            <div className="prompt-options">
+              <div className="prompt-option">
+                <label htmlFor="first-login-name">메뉴판 이름</label>
+                <input
+                  id="first-login-name"
+                  type="text"
+                  value={firstLoginName}
+                  onChange={(e) => setFirstLoginName(e.target.value)}
+                  placeholder="예: 회사 점심"
+                  maxLength={30}
+                  disabled={isBusy}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleFirstLoginSaveAsNew()}
+                  disabled={!firstLoginName.trim() || isBusy}
+                >
+                  현재 메뉴를 새 메뉴판으로 저장
+                </button>
+              </div>
+              <div className="prompt-option">
+                <button
+                  type="button"
+                  onClick={handleFirstLoginLoadDefault}
+                  disabled={!menuSets.menuSets.some((item) => item.isDefault) || isBusy}
+                >
+                  서버 기본 메뉴판 불러오기
+                </button>
+              </div>
+              <div className="prompt-option">
+                <button type="button" onClick={handleFirstLoginKeepAnonymous} disabled={isBusy}>
+                  지금은 익명 후보 계속 사용
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {isAuthenticated && menuSets.enabled && (
+        <section className="menu-set-section" aria-label="메뉴판 관리">
+          <MenuSetSelector
+            menuSets={menuSets.menuSets}
+            currentId={
+              activeMenuSource === "menu-set"
+                ? menuSets.currentMenuSet?.id ?? null
+                : null
+            }
+            isLoading={menuSets.isLoading}
+            disabled={isBusy}
+            createDisabled={menuSets.saveStatus === "conflict"}
+            onSelect={handleMenuSetSelect}
+            onCreateNew={() => setIsNewMenuSetFormOpen(true)}
+          />
+          {isNewMenuSetFormOpen && (
+            <div className="menu-set-create-form">
+              <label htmlFor="new-menu-set-name">새 메뉴판 이름</label>
+              <input
+                id="new-menu-set-name"
+                type="text"
+                value={newMenuSetName}
+                onChange={(event) => setNewMenuSetName(event.target.value)}
+                maxLength={30}
+                placeholder="예: 회사 점심"
+                disabled={isBusy || menuSets.saveStatus === "conflict"}
+              />
+              <button
+                type="button"
+                onClick={() => void handleMenuSetCreateNew()}
+                disabled={!newMenuSetName.trim() || isBusy || menuSets.saveStatus === "conflict"}
+              >
+                현재 후보로 만들기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNewMenuSetFormOpen(false);
+                  setNewMenuSetName("");
+                }}
+                disabled={isBusy}
+              >
+                취소
+              </button>
+            </div>
+          )}
+          <MenuSetSaveStatus
+            status={menuSets.saveStatus}
+            error={menuSets.error}
+            isBusy={isBusy}
+            onReloadConflict={() => void menuSets.reloadConflict()}
+            onClearError={menuSets.clearError}
+          />
+          {activeMenuSource === "menu-set" && menuSets.currentMenuSet && (
+            <div className="menu-set-actions-bar">
+              <button
+                type="button"
+                onClick={handleMenuSetDefault}
+                disabled={
+                  menuSets.currentMenuSet.isDefault ||
+                  isBusy ||
+                  menuSets.saveStatus === "conflict"
+                }
+              >
+                {menuSets.currentMenuSet.isDefault ? "기본 메뉴판" : "기본으로 설정"}
+              </button>
+              <button
+                type="button"
+                onClick={handleMenuSetArchive}
+                disabled={isBusy || menuSets.saveStatus === "conflict"}
+              >
+                보관
+              </button>
+              <button type="button" onClick={handleSwitchToAnonymous} disabled={isBusy}>
+                익명 후보로 전환
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="game-board" aria-label="메뉴 룰렛">
         <RouletteWheel
           ref={wheelRef}
-          menus={menus}
+          key={rouletteResetKey}
+          menus={rouletteMenus}
           onSpinStart={handleSpinStart}
           onSpinComplete={handleSpinComplete}
         />
 
-        <MenuEditor
-          menus={menus}
-          isSpinning={isSpinning}
-          resetKey={resetKey}
-          onAdd={handleAddMenu}
-          onRemove={handleRemoveMenu}
-          onReset={handleResetMenus}
-        />
+        {activeMenuSource === "menu-set" && menuSets.currentMenuSet ? (
+          <MenuSetEditor
+            menuSet={menuSets.currentMenuSet}
+            draftName={menuSets.draftName}
+            draftItems={menuSets.draftItems}
+            saveStatus={menuSets.saveStatus}
+            isBusy={isBusy}
+            onDraftChange={handleMenuSetDraftChange}
+            onSave={handleMenuSetSave}
+            onReset={handleResetMenus}
+          />
+        ) : (
+          <MenuEditor
+            menus={rouletteMenus}
+            isSpinning={isSpinning}
+            resetKey={anonymousMenuState.resetKey}
+            onAdd={handleAddMenu}
+            onRemove={handleRemoveMenu}
+            onReset={handleResetMenus}
+          />
+        )}
       </section>
 
       <RouletteResult

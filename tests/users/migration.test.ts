@@ -1,26 +1,17 @@
 import assert from "node:assert/strict";
 import test, { describe, after } from "node:test";
-import { createTestD1, disposeTestD1 } from "./helpers.ts";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import type { D1Database } from "../../server/db/types.server.ts";
+import {
+  createTestD1,
+  applyMigrationFiles,
+  applyMigrations,
+  disposeTestD1,
+} from "./helpers.ts";
 
-async function applyMigration(db: D1Database): Promise<void> {
-  const migrationPath = resolve(process.cwd(), "migrations/0001_users.sql");
-  const sql = readFileSync(migrationPath, "utf-8");
-  const statements = sql
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  const prepared = statements.map((s) => db.prepare(s));
-  await db.batch(prepared);
-}
 
 describe("D1 migration", () => {
-  test("applies migration to fresh database", async () => {
+  test("applies all migrations to fresh database", async () => {
     const db = await createTestD1();
-    await applyMigration(db);
+    await applyMigrations(db);
 
     const result = await db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
@@ -30,10 +21,10 @@ describe("D1 migration", () => {
     await disposeTestD1();
   });
 
-  test("migration is idempotent on same database", async () => {
+  test("0001 users migration is idempotent on same database", async () => {
     const db = await createTestD1();
-    await applyMigration(db);
-    await applyMigration(db);
+    await applyMigrationFiles(db, ["0001_users.sql"]);
+    await applyMigrationFiles(db, ["0001_users.sql"]);
 
     const result = await db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
@@ -45,7 +36,7 @@ describe("D1 migration", () => {
 
   test("fresh database has correct schema", async () => {
     const db = await createTestD1();
-    await applyMigration(db);
+    await applyMigrations(db);
 
     const columns = await db
       .prepare("PRAGMA table_info(users)")
@@ -71,7 +62,7 @@ describe("D1 migration", () => {
 
   test("unique index exists on firebase_uid", async () => {
     const db = await createTestD1();
-    await applyMigration(db);
+    await applyMigrations(db);
 
     const indexes = await db
       .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='users'")

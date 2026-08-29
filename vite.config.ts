@@ -35,6 +35,7 @@ export default defineConfig(async ({ command }) => {
     vars: {
       APP_ORIGIN: "https://hangry-and-idk.site",
       FIREBASE_PROJECT_ID: "hangry-and-idk",
+      FEATURE_MENU_SETS: "true",
     },
     ...(resolvedD1Databases.length > 0
       ? { d1_databases: resolvedD1Databases }
@@ -43,7 +44,12 @@ export default defineConfig(async ({ command }) => {
       {
         name: "RATE_LIMITER",
         namespace_id: "1001",
-        simple: { limit: 30, period: 60 },
+        simple: { limit: 30, period: 60 as const },
+      },
+      {
+        name: "APP_WRITE_RATE_LIMITER",
+        namespace_id: "1002",
+        simple: { limit: 60, period: 60 as const },
       },
     ],
   };

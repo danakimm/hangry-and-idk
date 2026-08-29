@@ -7,7 +7,7 @@
     {
       "binding": "DB",
       "database_name": "hangry-and-idk-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "e7519a41-9306-4506-b7f7-9ef2a952ef10",
       "migrations_dir": "migrations"
     }
   ]

@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -13,31 +11,25 @@ import {
 import type { User } from "../shared/contract.ts";
 import { fetchSession, fetchSessionStrict, loginWithGoogle, logoutSession } from "./api.ts";
 import { createCleanupRegistry } from "./cleanup.ts";
+import {
+  AuthContext,
+  type AuthContextValue,
+  type AuthStatus,
+} from "./context.ts";
 
-type AuthStatus = "loading" | "authenticated" | "anonymous";
+export { AuthContext, useAuth } from "./context.ts";
+export type { AuthContextValue, AuthStatus } from "./context.ts";
 
-type AuthContextValue = {
-  user: User | null;
-  status: AuthStatus;
-  login: () => Promise<void>;
-  logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
-  onLogoutCleanup: (callback: () => void) => () => void;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-}
-
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  menuSetsEnabled = false,
+}: {
+  children: ReactNode;
+  menuSetsEnabled?: boolean;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
+  const [interactiveLoginVersion, setInteractiveLoginVersion] = useState(0);
   const registryRef = useRef(createCleanupRegistry());
   const initializedRef = useRef(false);
 
@@ -73,18 +65,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async () => {
     await loginWithGoogle();
     await refreshSession();
+    setInteractiveLoginVersion((prev) => prev + 1);
   }, [refreshSession]);
 
   const logout = useCallback(async () => {
-    await logoutSession();
     runCleanups();
-    setUser(null);
-    setStatus("anonymous");
-  }, [runCleanups]);
+    setStatus("loading");
+    try {
+      await logoutSession();
+      setUser(null);
+      setStatus("anonymous");
+    } catch (error) {
+      try {
+        await refreshSession();
+      } catch {
+        setUser(null);
+        setStatus("anonymous");
+      }
+      throw error;
+    }
+  }, [refreshSession, runCleanups]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, status, login, logout, refreshSession, onLogoutCleanup }),
-    [user, status, login, logout, refreshSession, onLogoutCleanup],
+    () => ({
+      user,
+      status,
+      menuSetsEnabled,
+      interactiveLoginVersion,
+      login,
+      logout,
+      refreshSession,
+      onLogoutCleanup,
+    }),
+    [
+      user,
+      status,
+      menuSetsEnabled,
+      interactiveLoginVersion,
+      login,
+      logout,
+      refreshSession,
+      onLogoutCleanup,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
