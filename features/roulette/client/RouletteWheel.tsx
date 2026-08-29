@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { MenuItem } from "../shared/contract.ts";
 import { MIN_MENUS, SPIN_DURATION_MS } from "../shared/constants.ts";
+import { buildWheelBackgrounds } from "./wheel-style.ts";
 
 function getRandomIndex(length: number) {
   const values = crypto.getRandomValues(new Uint32Array(1));
@@ -32,16 +33,10 @@ const RouletteWheel = forwardRef<RouletteWheelHandle, RouletteWheelProps>(
     const [isSpinning, setIsSpinning] = useState(false);
     const rotationRef = useRef(0);
 
-    const sliceAngle = 360 / menus.length;
-
-    const wheelBackground = useMemo(() => {
-      const stops = menus.map((menu, index) => {
-        const start = index * sliceAngle;
-        const end = (index + 1) * sliceAngle;
-        return `${menu.color} ${start}deg ${end}deg`;
-      });
-      return `conic-gradient(from ${-sliceAngle / 2}deg, ${stops.join(", ")})`;
-    }, [menus, sliceAngle]);
+    const { sliceAngle, wheelBackground, dividerBackground } = useMemo(
+      () => buildWheelBackgrounds(menus.map((menu) => menu.color)),
+      [menus],
+    );
 
     const resetRotation = useCallback(() => {
       rotationRef.current = 0;
@@ -89,7 +84,7 @@ const RouletteWheel = forwardRef<RouletteWheelHandle, RouletteWheelProps>(
             }}
             aria-hidden="true"
           >
-            <div className="wheel-lines" />
+            <div className="wheel-lines" style={{ background: dividerBackground }} />
             {menus.map((menu, index) => {
               const angle = index * sliceAngle;
               const radians = (angle * Math.PI) / 180;
