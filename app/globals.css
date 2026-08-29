@@ -220,8 +220,8 @@ main {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: repeating-conic-gradient(from -0.5deg, rgba(23, 33, 29, 0.75) 0deg 1deg, transparent 1deg 45deg);
   opacity: 0.28;
+  pointer-events: none;
 }
 
 .wheel-label {
