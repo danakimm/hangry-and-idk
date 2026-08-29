@@ -333,6 +333,11 @@ main {
   border-bottom: 2px solid var(--ink);
 }
 
+.panel-heading > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .panel-heading span {
   display: block;
   margin-bottom: 5px;
@@ -343,6 +348,36 @@ main {
   margin: 0;
   font-size: 29px;
   letter-spacing: -0.055em;
+}
+
+.menu-board-name-field {
+  display: block;
+}
+
+.menu-board-name-input {
+  width: min(100%, 300px);
+  padding: 0 0 3px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 29px;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+}
+
+.panel-heading .text-button {
+  flex: 0 0 auto;
+  max-width: 118px;
+  line-height: 1.35;
+}
+
+.menu-board-name-input:hover:not(:disabled),
+.menu-board-name-input:focus-visible {
+  border-bottom-color: var(--ink);
 }
 
 .text-button {
@@ -367,6 +402,61 @@ main {
   grid-template-columns: 36px 40px 1fr 30px;
   align-items: center;
   border-bottom: 1px dashed rgba(23, 33, 29, 0.35);
+}
+
+.menu-list li:has(input:focus-visible) {
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.editable-menu-list li {
+  grid-template-columns: 36px 42px minmax(0, 1fr) 36px 30px;
+  column-gap: 4px;
+}
+
+.menu-item-name-input,
+.menu-item-emoji-input {
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.menu-item-name-input {
+  width: 100%;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.menu-item-emoji-input {
+  width: 42px;
+  text-align: center;
+  font-size: 23px;
+}
+
+.menu-item-name-input:hover:not(:disabled),
+.menu-item-name-input:focus-visible,
+.menu-item-emoji-input:hover:not(:disabled),
+.menu-item-emoji-input:focus-visible {
+  border-color: rgba(23, 33, 29, 0.45);
+  background: var(--paper-light);
+}
+
+.menu-item-color-input {
+  width: 30px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid rgba(23, 33, 29, 0.55);
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.menu-item-color-input:disabled {
+  cursor: not-allowed;
 }
 
 .menu-number {
@@ -402,6 +492,36 @@ main {
 
 .menu-form {
   margin-top: 26px;
+}
+
+.active-menu-save-actions {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed rgba(23, 33, 29, 0.35);
+}
+
+.save-menu-button {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: var(--green);
+  color: white;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.save-menu-button:hover:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.save-menu-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .menu-form label {
@@ -1090,6 +1210,19 @@ footer a {
     padding: 26px 20px;
   }
 
+  .menu-board-name-input {
+    font-size: 24px;
+  }
+
+  .editable-menu-list li {
+    grid-template-columns: 30px 38px minmax(0, 1fr) 32px 28px;
+    column-gap: 2px;
+  }
+
+  .menu-item-emoji-input {
+    width: 38px;
+  }
+
   .result-section {
     margin-bottom: 68px;
     padding: 34px 18px 28px;
@@ -1212,7 +1345,6 @@ footer a {
 .prompt-options,
 .menu-set-selector,
 .menu-set-actions-bar,
-.menu-set-actions,
 .menu-set-create-form,
 .status-conflict,
 .status-offline,
@@ -1275,13 +1407,11 @@ footer a {
 
 .menu-set-create-form,
 .menu-set-actions-bar,
-.menu-set-save-status,
-.menu-set-editor {
+.menu-set-save-status {
   margin-top: 16px;
 }
 
 .menu-set-create-form label,
-.menu-set-name-field label,
 .status-conflict label {
   font-size: 12px;
   font-weight: 900;
@@ -1309,30 +1439,6 @@ footer a {
   color: #a1261b;
 }
 
-.menu-set-name-field {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 360px);
-  align-items: center;
-  gap: 10px;
-}
-
-.menu-set-items {
-  margin: 14px 0;
-  display: grid;
-  gap: 8px;
-}
-
-.menu-set-item {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) 80px 54px auto;
-  gap: 8px;
-}
-
-.menu-set-item input[type="color"] {
-  width: 54px;
-  padding: 4px;
-}
-
 @media (max-width: 640px) {
   .first-login-prompt,
   .menu-set-section {
@@ -1357,12 +1463,4 @@ footer a {
     flex-basis: auto;
   }
 
-  .menu-set-name-field,
-  .menu-set-item {
-    grid-template-columns: 1fr;
-  }
-
-  .menu-set-item input[type="color"] {
-    width: 100%;
-  }
 }
