@@ -31,7 +31,7 @@ export default function MenuSetSaveStatus({
       )}
       {status === "conflict" && (
         <div className="status-conflict">
-          <span>다른 곳에서 메뉴판이 변경됐어요.</span>
+          <span>다른 곳에서 변경됐어요. 최신본을 불러오면 현재 편집 내용은 사라집니다.</span>
           <button type="button" onClick={onReloadConflict} disabled={isBusy}>
             서버 최신본 불러오기
           </button>

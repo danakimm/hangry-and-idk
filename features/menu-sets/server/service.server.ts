@@ -314,7 +314,7 @@ export function createMenuSetService(
       ).catch(() => ({ status: "internalError" as const }));
 
       if (result.status === "internalError") {
-        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판 보관에 실패했습니다.") };
+        return { ok: false, error: makeError("INTERNAL_ERROR", "메뉴판 삭제에 실패했습니다.") };
       }
       if (result.status === "versionConflict") {
         return {
@@ -337,7 +337,7 @@ export function createMenuSetService(
         .catch(() => ({ status: "internalError" as const }));
 
       if (result.status === "internalError") {
-        return { ok: false, error: makeError("INTERNAL_ERROR", "기본 메뉴판 설정에 실패했습니다.") };
+        return { ok: false, error: makeError("INTERNAL_ERROR", "대표 메뉴판 설정에 실패했습니다.") };
       }
       if (result.status === "notFound") {
         return { ok: false, error: makeError("MENU_SET_NOT_FOUND", "메뉴판을 찾을 수 없습니다.") };
@@ -355,7 +355,7 @@ export function createMenuSetService(
       const aggregate = await repository.findByIdAndOwner(menuSetId, ownerUserId)
         .catch(() => null);
       if (!aggregate) {
-        return { ok: false, error: makeError("INTERNAL_ERROR", "기본 메뉴판 설정에 실패했습니다.") };
+        return { ok: false, error: makeError("INTERNAL_ERROR", "대표 메뉴판 설정에 실패했습니다.") };
       }
 
       return { ok: true, data: aggregate };

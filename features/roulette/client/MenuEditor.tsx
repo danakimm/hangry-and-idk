@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, ReactNode, useState } from "react";
 import type { MenuItem } from "../shared/contract.ts";
 import {
   customMenuEmojis,
@@ -16,12 +16,16 @@ type MenuEditorProps = {
   menus: MenuItem[];
   disabled: boolean;
   resetKey: number;
+  toolbar?: ReactNode;
+  feedback?: ReactNode;
   onAdd: (name: string, emoji: string) => void;
   onRemove: (id: string) => void;
   onReset: () => void;
   savedMenu?: {
     id: string;
     name: string;
+    isDefault: boolean;
+    isEditing: boolean;
     nameMaxLength: number;
     saveLabel: string;
     canSave: boolean;
@@ -31,6 +35,8 @@ type MenuEditorProps = {
       field: "name" | "emoji" | "color",
       value: string,
     ) => void;
+    onBeginEdit: () => void;
+    onCancelEdit: () => void;
     onSave: () => void;
   };
 };
@@ -39,6 +45,8 @@ export default function MenuEditor({
   menus,
   disabled,
   resetKey,
+  toolbar,
+  feedback,
   onAdd,
   onRemove,
   onReset,
@@ -74,16 +82,16 @@ export default function MenuEditor({
 
   return (
     <aside
-      className="menu-panel"
+      className={`menu-panel${savedMenu ? " saved-menu-panel" : ""}`}
       data-menu-set-id={savedMenu?.id}
       data-menu-source={savedMenu ? "menu-set" : "anonymous"}
     >
+      {toolbar && <div className="menu-panel-toolbar">{toolbar}</div>}
       <div className="panel-heading">
         <div>
           <span>MY MENU LIST</span>
           {savedMenu ? (
-            <>
-              <h2 className="sr-only">저장 메뉴판 편집</h2>
+            savedMenu.isEditing ? (
               <label className="menu-board-name-field">
                 <span className="sr-only">메뉴판 이름</span>
                 <input
@@ -95,24 +103,42 @@ export default function MenuEditor({
                   disabled={disabled}
                 />
               </label>
-            </>
+            ) : (
+              <div className="menu-board-title-row">
+                <h2>{savedMenu.name}</h2>
+                {savedMenu.isDefault && <span className="default-menu-badge">대표</span>}
+              </div>
+            )
           ) : (
             <h2>오늘의 후보</h2>
           )}
         </div>
-        <button type="button" className="text-button" onClick={onReset} disabled={disabled}>
-          {savedMenu ? "저장본으로 되돌리기" : "처음대로"}
-        </button>
+        {savedMenu ? (
+          !savedMenu.isEditing && (
+            <button
+              type="button"
+              className="edit-menu-button"
+              onClick={savedMenu.onBeginEdit}
+              disabled={disabled}
+            >
+              편집
+            </button>
+          )
+        ) : (
+          <button type="button" className="text-button" onClick={onReset} disabled={disabled}>
+            처음대로
+          </button>
+        )}
       </div>
 
       <ul
-        className={`menu-list${savedMenu ? " editable-menu-list" : ""}`}
+        className={`menu-list${savedMenu?.isEditing ? " editable-menu-list" : ""}${savedMenu && !savedMenu.isEditing ? " saved-menu-list" : ""}`}
         aria-label="룰렛 메뉴 목록"
       >
         {menus.map((menu, index) => (
           <li key={menu.id}>
             <span className="menu-number">{String(index + 1).padStart(2, "0")}</span>
-            {savedMenu ? (
+            {savedMenu?.isEditing ? (
               <>
                 <input
                   className="menu-item-emoji-input"
@@ -147,19 +173,21 @@ export default function MenuEditor({
                 <strong>{menu.name}</strong>
               </>
             )}
-            <button
-              type="button"
-              onClick={() => onRemove(menu.id)}
-              disabled={menus.length <= 2 || disabled}
-              aria-label={`${menu.name} 삭제`}
-            >
-              ×
-            </button>
+            {(!savedMenu || savedMenu.isEditing) && (
+              <button
+                type="button"
+                onClick={() => onRemove(menu.id)}
+                disabled={menus.length <= 2 || disabled}
+                aria-label={`${menu.name} 삭제`}
+              >
+                ×
+              </button>
+            )}
           </li>
         ))}
       </ul>
 
-      <form className="menu-form" onSubmit={handleSubmit}>
+      {(!savedMenu || savedMenu.isEditing) && <form className="menu-form" onSubmit={handleSubmit}>
         <label htmlFor="menu-input">먹고 싶은 메뉴 직접 추가</label>
         <div className="menu-input-row">
           <button
@@ -167,8 +195,8 @@ export default function MenuEditor({
             className="emoji-trigger"
             onClick={() => setIsEmojiPickerOpen((current) => !current)}
             disabled={menus.length >= MAX_MENUS || disabled}
-            aria-haspopup="listbox"
             aria-expanded={isEmojiPickerOpen}
+            aria-controls="menu-emoji-picker"
             aria-label={`메뉴 아이콘 ${newMenuEmoji}, 변경`}
           >
             {newMenuEmoji}
@@ -191,12 +219,16 @@ export default function MenuEditor({
           </button>
         </div>
         {isEmojiPickerOpen && (
-          <div className="emoji-picker" role="listbox" aria-label="메뉴 아이콘 선택">
+          <div
+            className="emoji-picker"
+            id="menu-emoji-picker"
+            role="group"
+            aria-label="메뉴 아이콘 선택"
+          >
             {customMenuEmojis.map((emoji) => (
               <button
                 type="button"
-                role="option"
-                aria-selected={newMenuEmoji === emoji}
+                aria-pressed={newMenuEmoji === emoji}
                 aria-label={`${emoji} 아이콘 선택`}
                 key={emoji}
                 onClick={() => {
@@ -209,10 +241,20 @@ export default function MenuEditor({
             ))}
           </div>
         )}
-      </form>
+      </form>}
 
-      {savedMenu && (
+      {feedback && <div className="menu-panel-feedback">{feedback}</div>}
+
+      {savedMenu?.isEditing && (
         <div className="active-menu-save-actions">
+          <button
+            type="button"
+            className="cancel-menu-edit-button"
+            onClick={savedMenu.onCancelEdit}
+            disabled={disabled}
+          >
+            편집 취소
+          </button>
           <button
             type="button"
             className="save-menu-button"
