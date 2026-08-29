@@ -234,9 +234,11 @@ describe("useMenuSets", () => {
     });
     assert.equal(state().saveStatus, "dirty");
 
+    let saved = false;
     await act(async () => {
-      await state().saveCurrent();
+      saved = await state().saveCurrent();
     });
+    assert.equal(saved, true);
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0], { version: 1, name: "저장 테스트" });
     assert.equal(state().saveStatus, "saved");
@@ -389,16 +391,19 @@ describe("useMenuSets", () => {
     });
     assert.equal(state().currentMenuSet?.id, "set-1");
 
+    let saved = true;
     await act(async () => {
       state().updateDraft("offline draft", state().draftItems);
-      await state().saveCurrent();
+      saved = await state().saveCurrent();
     });
+    assert.equal(saved, false);
     assert.equal(state().saveStatus, "offline");
     assert.equal(state().draftName, "offline draft");
 
     await act(async () => {
-      await state().saveCurrent();
+      saved = await state().saveCurrent();
     });
+    assert.equal(saved, true);
     assert.equal(attempts, 2);
     assert.equal(state().saveStatus, "saved");
   });
@@ -636,7 +641,7 @@ describe("useMenuSets", () => {
     });
     assert.equal(state().currentMenuSet?.id, "set-1");
 
-    let savePromise!: Promise<void>;
+    let savePromise!: Promise<boolean>;
     await act(async () => {
       state().updateDraft("will abort", state().draftItems);
       savePromise = state().saveCurrent();

@@ -16,6 +16,9 @@ import { useAuth } from "@/features/auth/client/AuthProvider";
 import { useMenuSets } from "@/features/menu-sets/client/hooks";
 import MenuSetSelector from "@/features/menu-sets/client/MenuSetSelector";
 import MenuSetSaveStatus from "@/features/menu-sets/client/MenuSetSaveStatus";
+import MenuSetActionsMenu from "@/features/menu-sets/client/MenuSetActionsMenu";
+import MenuSetInfoTooltip from "@/features/menu-sets/client/MenuSetInfoTooltip";
+import MenuSetCreateDialog from "@/features/menu-sets/client/MenuSetCreateDialog";
 import type { MenuSetItemRequest } from "@/features/menu-sets/shared/contract";
 import { MENU_SET_NAME_MAX_LENGTH } from "@/features/menu-sets/shared/constants";
 
@@ -34,6 +37,7 @@ export default function Home() {
   const [firstLoginName, setFirstLoginName] = useState("");
   const [newMenuSetName, setNewMenuSetName] = useState("");
   const [isNewMenuSetFormOpen, setIsNewMenuSetFormOpen] = useState(false);
+  const [isMenuSetEditing, setIsMenuSetEditing] = useState(false);
   const prevLoginVersionRef = useRef(0);
 
   const rouletteMenus: MenuItem[] =
@@ -124,6 +128,7 @@ export default function Home() {
     setShowFirstLoginPrompt(false);
     setFirstLoginName("");
     setIsNewMenuSetFormOpen(false);
+    setIsMenuSetEditing(false);
     setNewMenuSetName("");
     setSelected(null);
     setIsSpinning(false);
@@ -299,6 +304,7 @@ export default function Home() {
     if (!confirmDiscardDraft()) return;
     if (!menuSets.selectMenuSet(id)) return;
     setActiveMenuSource("menu-set");
+    setIsMenuSetEditing(false);
     setRouletteResetKey((key) => key + 1);
     setSelected(null);
     clearRestaurantSearch();
@@ -316,6 +322,7 @@ export default function Home() {
     const created = await menuSets.createNew(newMenuSetName.trim(), items);
     if (!created) return;
     setActiveMenuSource("menu-set");
+    setIsMenuSetEditing(false);
     setIsNewMenuSetFormOpen(false);
     setNewMenuSetName("");
     setRouletteResetKey((key) => key + 1);
@@ -354,13 +361,22 @@ export default function Home() {
     [handleMenuSetDraftChange, menuSets.draftItems, menuSets.draftName],
   );
 
-  const handleMenuSetSave = useCallback(() => {
-    void menuSets.saveCurrent();
+  const handleMenuSetSave = useCallback(async () => {
+    const saved = await menuSets.saveCurrent();
+    if (saved) setIsMenuSetEditing(false);
   }, [menuSets]);
+
+  const handleMenuSetCancelEdit = useCallback(() => {
+    if (isBusy || menuSets.saveStatus === "conflict") return;
+    menuSets.resetCurrentDraft();
+    setIsMenuSetEditing(false);
+  }, [isBusy, menuSets]);
 
   const handleMenuSetArchive = useCallback(() => {
     if (isBusy || menuSets.saveStatus === "conflict") return;
-    if (!confirm("이 메뉴판을 보관하시겠습니까?")) return;
+    if (!confirm(
+      "이 메뉴판을 삭제할까요? 현재는 다시 불러올 수 없지만, 메뉴는 룰렛에 그대로 남습니다.",
+    )) return;
     if (!confirmDiscardDraft()) return;
     const snapshot = menuSets.draftItems.map((item) => ({
       id: item.id ?? crypto.randomUUID(),
@@ -372,6 +388,7 @@ export default function Home() {
       if (success) {
         anonymousMenuState.replaceMenus(snapshot);
         setActiveMenuSource("anonymous");
+        setIsMenuSetEditing(false);
         setSelected(null);
         setCoordinates(null);
         setLocationStatus("idle");
@@ -396,6 +413,7 @@ export default function Home() {
     if (!confirmDiscardDraft()) return;
     menuSets.resetCurrentDraft();
     setActiveMenuSource("anonymous");
+    setIsMenuSetEditing(false);
     setRouletteResetKey((key) => key + 1);
     setSelected(null);
     clearRestaurantSearch();
@@ -434,8 +452,8 @@ export default function Home() {
       {isAuthenticated && menuSets.enabled && showFirstLoginPrompt && (
         <section className="first-login-prompt" aria-label="메뉴판 전환">
           <div className="prompt-content">
-            <h3>메뉴판을 어떻게 할까요?</h3>
-            <p>현재 편집 중인 메뉴를 새 메뉴판으로 저장하거나, 서버에서 불러올 수 있습니다.</p>
+            <h3>메뉴판을 어떻게 시작할까요?</h3>
+            <p>현재 메뉴를 저장하거나 대표 메뉴판을 불러올 수 있습니다.</p>
             <div className="prompt-options">
               <div className="prompt-option">
                 <label htmlFor="first-login-name">메뉴판 이름</label>
@@ -462,97 +480,16 @@ export default function Home() {
                   onClick={handleFirstLoginLoadDefault}
                   disabled={!menuSets.menuSets.some((item) => item.isDefault) || isBusy}
                 >
-                  서버 기본 메뉴판 불러오기
+                  대표 메뉴판 불러오기
                 </button>
               </div>
               <div className="prompt-option">
                 <button type="button" onClick={handleFirstLoginKeepAnonymous} disabled={isBusy}>
-                  지금은 익명 후보 계속 사용
+                  저장하지 않고 계속 사용
                 </button>
               </div>
             </div>
           </div>
-        </section>
-      )}
-
-      {isAuthenticated && menuSets.enabled && (
-        <section className="menu-set-section" aria-label="메뉴판 관리">
-          <MenuSetSelector
-            menuSets={menuSets.menuSets}
-            currentId={
-              activeMenuSource === "menu-set"
-                ? menuSets.currentMenuSet?.id ?? null
-                : null
-            }
-            isLoading={menuSets.isLoading}
-            disabled={isBusy}
-            createDisabled={menuSets.saveStatus === "conflict"}
-            onSelect={handleMenuSetSelect}
-            onCreateNew={() => setIsNewMenuSetFormOpen(true)}
-          />
-          {isNewMenuSetFormOpen && (
-            <div className="menu-set-create-form">
-              <label htmlFor="new-menu-set-name">새 메뉴판 이름</label>
-              <input
-                id="new-menu-set-name"
-                type="text"
-                value={newMenuSetName}
-                onChange={(event) => setNewMenuSetName(event.target.value)}
-                maxLength={30}
-                placeholder="예: 회사 점심"
-                disabled={isBusy || menuSets.saveStatus === "conflict"}
-              />
-              <button
-                type="button"
-                onClick={() => void handleMenuSetCreateNew()}
-                disabled={!newMenuSetName.trim() || isBusy || menuSets.saveStatus === "conflict"}
-              >
-                현재 후보로 만들기
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsNewMenuSetFormOpen(false);
-                  setNewMenuSetName("");
-                }}
-                disabled={isBusy}
-              >
-                취소
-              </button>
-            </div>
-          )}
-          <MenuSetSaveStatus
-            status={menuSets.saveStatus}
-            error={menuSets.error}
-            isBusy={isBusy}
-            onReloadConflict={() => void menuSets.reloadConflict()}
-            onClearError={menuSets.clearError}
-          />
-          {activeMenuSource === "menu-set" && menuSets.currentMenuSet && (
-            <div className="menu-set-actions-bar">
-              <button
-                type="button"
-                onClick={handleMenuSetDefault}
-                disabled={
-                  menuSets.currentMenuSet.isDefault ||
-                  isBusy ||
-                  menuSets.saveStatus === "conflict"
-                }
-              >
-                {menuSets.currentMenuSet.isDefault ? "기본 메뉴판" : "기본으로 설정"}
-              </button>
-              <button
-                type="button"
-                onClick={handleMenuSetArchive}
-                disabled={isBusy || menuSets.saveStatus === "conflict"}
-              >
-                보관
-              </button>
-              <button type="button" onClick={handleSwitchToAnonymous} disabled={isBusy}>
-                익명 후보로 전환
-              </button>
-            </div>
-          )}
         </section>
       )}
 
@@ -577,6 +514,50 @@ export default function Home() {
               ? rouletteResetKey
               : anonymousMenuState.resetKey
           }
+          toolbar={
+            isAuthenticated && menuSets.enabled ? (
+              <div className="menu-set-toolbar-content">
+                <MenuSetSelector
+                  menuSets={menuSets.menuSets}
+                  currentId={
+                    activeMenuSource === "menu-set"
+                      ? menuSets.currentMenuSet?.id ?? null
+                      : null
+                  }
+                  isLoading={menuSets.isLoading}
+                  disabled={isBusy || isMenuSetEditing}
+                  createDisabled={
+                    isMenuSetEditing || menuSets.saveStatus === "conflict"
+                  }
+                  onSelect={handleMenuSetSelect}
+                  onCreateNew={() => setIsNewMenuSetFormOpen(true)}
+                />
+                <MenuSetInfoTooltip />
+                {activeMenuSource === "menu-set" &&
+                  menuSets.currentMenuSet &&
+                  !isMenuSetEditing && (
+                    <MenuSetActionsMenu
+                      isDefault={menuSets.currentMenuSet.isDefault}
+                      disabled={isBusy || menuSets.saveStatus === "conflict"}
+                      onSetDefault={handleMenuSetDefault}
+                      onSwitchToTemporary={handleSwitchToAnonymous}
+                      onArchive={handleMenuSetArchive}
+                    />
+                  )}
+              </div>
+            ) : undefined
+          }
+          feedback={
+            isAuthenticated && menuSets.enabled ? (
+              <MenuSetSaveStatus
+                status={menuSets.saveStatus}
+                error={menuSets.error}
+                isBusy={isBusy}
+                onReloadConflict={() => void menuSets.reloadConflict()}
+                onClearError={menuSets.clearError}
+              />
+            ) : undefined
+          }
           onAdd={handleAddMenu}
           onRemove={handleRemoveMenu}
           onReset={handleResetMenus}
@@ -585,24 +566,42 @@ export default function Home() {
               ? {
                   id: menuSets.currentMenuSet.id,
                   name: menuSets.draftName,
+                  isDefault: menuSets.currentMenuSet.isDefault,
+                  isEditing: isMenuSetEditing,
                   nameMaxLength: MENU_SET_NAME_MAX_LENGTH,
                   saveLabel:
                     menuSets.saveStatus === "saving"
                       ? "저장 중..."
                       : menuSets.saveStatus === "offline"
                         ? "다시 저장"
-                        : "저장",
+                        : "변경사항 저장",
                   canSave:
                     menuSets.saveStatus === "dirty" ||
                     menuSets.saveStatus === "offline",
                   onNameChange: handleMenuSetNameChange,
                   onItemChange: handleMenuSetItemChange,
-                  onSave: handleMenuSetSave,
+                  onBeginEdit: () => setIsMenuSetEditing(true),
+                  onCancelEdit: handleMenuSetCancelEdit,
+                  onSave: () => void handleMenuSetSave(),
                 }
               : undefined
           }
         />
       </section>
+
+      {isNewMenuSetFormOpen && (
+        <MenuSetCreateDialog
+          name={newMenuSetName}
+          nameMaxLength={MENU_SET_NAME_MAX_LENGTH}
+          disabled={isBusy || menuSets.saveStatus === "conflict"}
+          onNameChange={setNewMenuSetName}
+          onCreate={() => void handleMenuSetCreateNew()}
+          onCancel={() => {
+            setIsNewMenuSetFormOpen(false);
+            setNewMenuSetName("");
+          }}
+        />
+      )}
 
       <RouletteResult
         ref={resultRef}

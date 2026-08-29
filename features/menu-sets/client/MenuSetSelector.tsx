@@ -22,13 +22,13 @@ export default function MenuSetSelector({
   onCreateNew,
 }: MenuSetSelectorProps) {
   if (isLoading) {
-    return <div className="menu-set-selector loading">메뉴판 불러오는 중...</div>;
+    return <div className="menu-set-selector loading">메뉴판을 불러오는 중...</div>;
   }
 
   if (menuSets.length === 0) {
     return (
       <div className="menu-set-selector empty">
-        <span>저장된 메뉴판이 없습니다.</span>
+        <span>아직 저장한 메뉴판이 없어요.</span>
         <button type="button" onClick={onCreateNew} disabled={disabled || createDisabled}>
           새 메뉴판 만들기
         </button>
@@ -49,18 +49,19 @@ export default function MenuSetSelector({
       >
         {currentId === null && (
           <option value="" disabled>
-            익명 후보 사용 중
+            임시 메뉴 사용 중
           </option>
         )}
         {menuSets.map((ms) => (
           <option key={ms.id} value={ms.id}>
             {ms.name}
-            {ms.isDefault ? " (기본)" : ""}
+            {ms.isDefault ? " (대표)" : ""}
           </option>
         ))}
       </select>
       <button type="button" onClick={onCreateNew} disabled={disabled || createDisabled}>
-        + 새 메뉴판
+        <span aria-hidden="true">＋</span>
+        새 메뉴판
       </button>
     </div>
   );

@@ -30,7 +30,7 @@ export type UseMenuSetsReturn = {
   selectMenuSet: (id: string) => boolean;
   createNew: (name: string, items: MenuSetItemRequest[]) => Promise<boolean>;
   updateDraft: (name: string, items: MenuSetItemRequest[]) => void;
-  saveCurrent: () => Promise<void>;
+  saveCurrent: () => Promise<boolean>;
   archiveCurrent: () => Promise<boolean>;
   setDefault: () => Promise<boolean>;
   reloadConflict: () => Promise<boolean>;
@@ -293,18 +293,18 @@ export function useMenuSets(
     setError(null);
   }, [updateSaveStatus]);
 
-  const saveCurrent = useCallback(async () => {
+  const saveCurrent = useCallback(async (): Promise<boolean> => {
     const candidate = draftRef.current;
-    if (!candidate) return;
-    if (saveStatusRef.current !== "dirty" && saveStatusRef.current !== "offline") return;
-    if (!beginMutation()) return;
+    if (!candidate) return false;
+    if (saveStatusRef.current !== "dirty" && saveStatusRef.current !== "offline") return false;
+    if (!beginMutation()) return false;
 
     const serverMenuSet = menuSetsRef.current.find(
       (menuSet) => menuSet.id === candidate.menuSetId,
     );
     if (!serverMenuSet) {
       finishMutation(generationRef.current);
-      return;
+      return false;
     }
 
     const generation = generationRef.current;
@@ -322,15 +322,15 @@ export function useMenuSets(
         },
         controller.signal,
       );
-      if (generation !== generationRef.current) return;
+      if (generation !== generationRef.current) return false;
 
       if (!result.ok) {
         if (result.error.error.code === "MENU_SET_VERSION_CONFLICT") {
           updateSaveStatus("conflict");
-          return;
+          return false;
         }
         handleSaveFailure(result.failure, result.error.error.message);
-        return;
+        return false;
       }
 
       const nextList = replaceMenuSet(menuSetsRef.current, result.data);
@@ -340,6 +340,7 @@ export function useMenuSets(
       draftRef.current = normalizedDraft;
       setDraft(normalizedDraft);
       updateSaveStatus("saved");
+      return true;
     } finally {
       releaseController(controller);
       finishMutation(generation);
