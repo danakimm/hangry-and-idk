@@ -41,6 +41,44 @@ type MenuEditorProps = {
   };
 };
 
+type EmojiPickerProps = {
+  id: string;
+  value: string;
+  disabled: boolean;
+  className?: string;
+  onSelect: (emoji: string) => void;
+};
+
+function EmojiPicker({
+  id,
+  value,
+  disabled,
+  className = "",
+  onSelect,
+}: EmojiPickerProps) {
+  return (
+    <div
+      className={`emoji-picker${className ? ` ${className}` : ""}`}
+      id={id}
+      role="group"
+      aria-label="메뉴 아이콘 선택"
+    >
+      {customMenuEmojis.map((emoji) => (
+        <button
+          type="button"
+          aria-pressed={value === emoji}
+          aria-label={`${emoji} 아이콘 선택`}
+          key={emoji}
+          onClick={() => onSelect(emoji)}
+          disabled={disabled}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function MenuEditor({
   menus,
   disabled,
@@ -55,6 +93,7 @@ export default function MenuEditor({
   const [newMenu, setNewMenu] = useState("");
   const [newMenuEmoji, setNewMenuEmoji] = useState(defaultMenuEmoji);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [editingEmojiIndex, setEditingEmojiIndex] = useState<number | null>(null);
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
 
   if (prevResetKey !== resetKey) {
@@ -66,6 +105,7 @@ export default function MenuEditor({
     });
     setNewMenuEmoji(next.emoji);
     setIsEmojiPickerOpen(next.isPickerOpen);
+    setEditingEmojiIndex(null);
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -118,7 +158,10 @@ export default function MenuEditor({
             <button
               type="button"
               className="edit-menu-button"
-              onClick={savedMenu.onBeginEdit}
+              onClick={() => {
+                setEditingEmojiIndex(null);
+                savedMenu.onBeginEdit();
+              }}
               disabled={disabled}
             >
               편집
@@ -140,15 +183,32 @@ export default function MenuEditor({
             <span className="menu-number">{String(index + 1).padStart(2, "0")}</span>
             {savedMenu?.isEditing ? (
               <>
-                <input
-                  className="menu-item-emoji-input"
-                  type="text"
-                  value={menu.emoji}
-                  onChange={(event) => savedMenu.onItemChange(index, "emoji", event.target.value)}
-                  maxLength={8}
-                  aria-label={`${String(index + 1)}번째 메뉴 이모지`}
+                <button
+                  className="menu-item-emoji-trigger"
+                  type="button"
+                  onClick={() => {
+                    setIsEmojiPickerOpen(false);
+                    setEditingEmojiIndex((current) => current === index ? null : index);
+                  }}
+                  aria-expanded={editingEmojiIndex === index}
+                  aria-controls={`menu-item-emoji-picker-${index}`}
+                  aria-label={`${String(index + 1)}번째 메뉴 아이콘 ${menu.emoji}, 변경`}
                   disabled={disabled}
-                />
+                >
+                  {menu.emoji}
+                </button>
+                {editingEmojiIndex === index && (
+                  <EmojiPicker
+                    id={`menu-item-emoji-picker-${index}`}
+                    value={menu.emoji}
+                    disabled={disabled}
+                    className="menu-item-emoji-picker"
+                    onSelect={(emoji) => {
+                      savedMenu.onItemChange(index, "emoji", emoji);
+                      setEditingEmojiIndex(null);
+                    }}
+                  />
+                )}
                 <input
                   className="menu-item-name-input"
                   type="text"
@@ -176,7 +236,10 @@ export default function MenuEditor({
             {(!savedMenu || savedMenu.isEditing) && (
               <button
                 type="button"
-                onClick={() => onRemove(menu.id)}
+                onClick={() => {
+                  setEditingEmojiIndex(null);
+                  onRemove(menu.id);
+                }}
                 disabled={menus.length <= 2 || disabled}
                 aria-label={`${menu.name} 삭제`}
               >
@@ -193,7 +256,10 @@ export default function MenuEditor({
           <button
             type="button"
             className="emoji-trigger"
-            onClick={() => setIsEmojiPickerOpen((current) => !current)}
+            onClick={() => {
+              setEditingEmojiIndex(null);
+              setIsEmojiPickerOpen((current) => !current);
+            }}
             disabled={menus.length >= MAX_MENUS || disabled}
             aria-expanded={isEmojiPickerOpen}
             aria-controls="menu-emoji-picker"
@@ -219,27 +285,15 @@ export default function MenuEditor({
           </button>
         </div>
         {isEmojiPickerOpen && (
-          <div
-            className="emoji-picker"
+          <EmojiPicker
             id="menu-emoji-picker"
-            role="group"
-            aria-label="메뉴 아이콘 선택"
-          >
-            {customMenuEmojis.map((emoji) => (
-              <button
-                type="button"
-                aria-pressed={newMenuEmoji === emoji}
-                aria-label={`${emoji} 아이콘 선택`}
-                key={emoji}
-                onClick={() => {
-                  setNewMenuEmoji(emoji);
-                  setIsEmojiPickerOpen(false);
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+            value={newMenuEmoji}
+            disabled={menus.length >= MAX_MENUS || disabled}
+            onSelect={(emoji) => {
+              setNewMenuEmoji(emoji);
+              setIsEmojiPickerOpen(false);
+            }}
+          />
         )}
       </form>}
 
@@ -250,7 +304,10 @@ export default function MenuEditor({
           <button
             type="button"
             className="cancel-menu-edit-button"
-            onClick={savedMenu.onCancelEdit}
+            onClick={() => {
+              setEditingEmojiIndex(null);
+              savedMenu.onCancelEdit();
+            }}
             disabled={disabled}
           >
             편집 취소
@@ -258,7 +315,10 @@ export default function MenuEditor({
           <button
             type="button"
             className="save-menu-button"
-            onClick={savedMenu.onSave}
+            onClick={() => {
+              setEditingEmojiIndex(null);
+              savedMenu.onSave();
+            }}
             disabled={disabled || !savedMenu.canSave}
           >
             {savedMenu.saveLabel}
