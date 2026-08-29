@@ -17,6 +17,7 @@ import { useMenuSets } from "@/features/menu-sets/client/hooks";
 import MenuSetSelector from "@/features/menu-sets/client/MenuSetSelector";
 import MenuSetSaveStatus from "@/features/menu-sets/client/MenuSetSaveStatus";
 import MenuSetActionsMenu from "@/features/menu-sets/client/MenuSetActionsMenu";
+import MenuSetInfoTooltip from "@/features/menu-sets/client/MenuSetInfoTooltip";
 import MenuSetCreateDialog from "@/features/menu-sets/client/MenuSetCreateDialog";
 import type { MenuSetItemRequest } from "@/features/menu-sets/shared/contract";
 import { MENU_SET_NAME_MAX_LENGTH } from "@/features/menu-sets/shared/constants";
@@ -531,6 +532,7 @@ export default function Home() {
                   onSelect={handleMenuSetSelect}
                   onCreateNew={() => setIsNewMenuSetFormOpen(true)}
                 />
+                <MenuSetInfoTooltip />
                 {activeMenuSource === "menu-set" &&
                   menuSets.currentMenuSet &&
                   !isMenuSetEditing && (
