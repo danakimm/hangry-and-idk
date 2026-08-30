@@ -41,6 +41,7 @@ export default function DecisionHistoryTrigger({
         <path d="M6 3.5h9l3 3V20.5H6z" />
         <path d="M15 3.5v4h3M9 12h6M9 16h6" />
       </svg>
+      <span className="decision-history-trigger-label">결정 기록</span>
     </button>
   );
 }

@@ -173,6 +173,7 @@ test("decision-history trigger is feature-gated and cannot become a dead click",
     name: "결정 기록 열기",
   }) as HTMLButtonElement;
   assert.equal(activeTrigger.disabled, false);
+  assert.ok(view.getByText("결정 기록"));
   fireEvent.click(activeTrigger);
   assert.equal(opens, 1);
 });

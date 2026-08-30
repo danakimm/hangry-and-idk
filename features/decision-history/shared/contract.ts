@@ -13,6 +13,7 @@ export type DecisionHistoryResponse = {
   selected: DecisionMenuSnapshotResponse;
   candidates: DecisionMenuSnapshotResponse[];
   source: DecisionSourceResponse;
+  /** Unix epoch time in milliseconds. */
   createdAt: number;
 };
 

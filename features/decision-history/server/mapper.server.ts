@@ -32,7 +32,8 @@ export function mapDecisionHistoryToResponse(
     selected: mapMenu(record.selected),
     candidates: record.candidates.map(mapMenu),
     source: mapSource(record.source),
-    createdAt: record.createdAt,
+    // SQLite stores epoch seconds, while JavaScript Date APIs consume milliseconds.
+    createdAt: record.createdAt * 1_000,
   };
 }
 

@@ -74,7 +74,7 @@ function decision(
       { name: "김밥", emoji: "🍙", color: "#000" },
     ],
     source,
-    createdAt: 1_000,
+    createdAt: 1_725_000_000_000,
   };
 }
 
@@ -126,6 +126,7 @@ test("drawer manages initial focus, body scroll, Escape, and trigger focus resto
   });
   const view = render(createElement(Drawer, initial));
 
+  assert.ok(view.getByText(/2024/));
   assert.equal(document.body.style.overflow, "hidden");
   assert.equal(
     document.activeElement,
