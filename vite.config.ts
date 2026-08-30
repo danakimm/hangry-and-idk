@@ -36,6 +36,7 @@ export default defineConfig(async ({ command }) => {
       APP_ORIGIN: "https://hangry-and-idk.site",
       FIREBASE_PROJECT_ID: "hangry-and-idk",
       FEATURE_MENU_SETS: "true",
+      FEATURE_DECISION_HISTORY: "true",
     },
     ...(resolvedD1Databases.length > 0
       ? { d1_databases: resolvedD1Databases }
