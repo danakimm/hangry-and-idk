@@ -14,6 +14,7 @@ import RouletteWheel from "@/features/roulette/client/RouletteWheel";
 import type { RouletteWheelHandle } from "@/features/roulette/client/RouletteWheel";
 import RouletteResult from "@/features/roulette/client/RouletteResult";
 import UserMenu from "@/features/auth/client/UserMenu";
+import DecisionHistoryTrigger from "@/features/decision-history/client/DecisionHistoryTrigger";
 import { useMenuState } from "@/features/roulette/client/useMenuState";
 import { useAuth } from "@/features/auth/client/AuthProvider";
 import { useMenuSets } from "@/features/menu-sets/client/hooks";
@@ -506,16 +507,19 @@ export default function Home() {
   return (
     <main>
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="오늘 뭐 먹지 홈">
-          <span className="brand-mark" aria-hidden="true">
-            ?
-          </span>
-          <span>오늘 뭐 먹지?</span>
-        </a>
-        <UserMenu />
-        <div className="header-note">
-          <span className="status-dot" aria-hidden="true" />
-          결정 장애 구조대, 영업 중
+        <div className="header-brand">
+          <a className="brand" href="#top" aria-label="오늘 뭐 먹지 홈">
+            <span className="brand-mark" aria-hidden="true">
+              ?
+            </span>
+            <span className="brand-text">오늘 뭐 먹지?</span>
+          </a>
+        </div>
+        <div className="header-history">
+          <DecisionHistoryTrigger />
+        </div>
+        <div className="header-user">
+          <UserMenu />
         </div>
       </header>
 

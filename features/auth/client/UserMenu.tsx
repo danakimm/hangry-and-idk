@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useAuth } from "./AuthProvider.tsx";
+import LoginBenefitsInfo from "./LoginBenefitsInfo.tsx";
 
 export default function UserMenu() {
-  const { user, status, login, logout } = useAuth();
+  const { user, status, login, logout, menuSetsEnabled, decisionHistoryEnabled } =
+    useAuth();
   const [loggingIn, setLoggingIn] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState("");
@@ -47,17 +49,19 @@ export default function UserMenu() {
   if (user) {
     return (
       <div className="user-menu">
-        <span className="user-name">
-          {user.name ?? user.email ?? "사용자"}
-        </span>
-        <button
-          type="button"
-          className="text-button"
-          onClick={() => void handleLogout()}
-          disabled={loggingOut}
-        >
-          {loggingOut ? "로그아웃 중..." : "로그아웃"}
-        </button>
+        <div className="user-menu-actions">
+          <span className="user-name" title={user.name ?? user.email ?? "사용자"}>
+            {user.name ?? user.email ?? "사용자"}
+          </span>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+          >
+            {loggingOut ? "로그아웃 중..." : "로그아웃"}
+          </button>
+        </div>
         {error && <span className="user-error">{error}</span>}
       </div>
     );
@@ -65,15 +69,32 @@ export default function UserMenu() {
 
   return (
     <div className="user-menu">
+      <div className="user-menu-actions">
+        <button
+          type="button"
+          className="login-button"
+          aria-label="Google 로그인"
+          onClick={() => void handleLogin()}
+          disabled={loggingIn}
+        >
+          {loggingIn ? (
+            "로그인 중..."
+          ) : (
+            <>
+              <span className="login-button-full">Google 로그인</span>
+              <span className="login-button-compact" aria-hidden="true">
+                로그인
+              </span>
+            </>
+          )}
+        </button>
+        <LoginBenefitsInfo
+          key={`${menuSetsEnabled}-${decisionHistoryEnabled}`}
+          menuSetsEnabled={menuSetsEnabled}
+          decisionHistoryEnabled={decisionHistoryEnabled}
+        />
+      </div>
       {error && <span className="user-error">{error}</span>}
-      <button
-        type="button"
-        className="login-button"
-        onClick={() => void handleLogin()}
-        disabled={loggingIn}
-      >
-        {loggingIn ? "로그인 중..." : "Google 로그인"}
-      </button>
     </div>
   );
 }
