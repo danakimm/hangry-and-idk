@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/client/context.ts";
 import {
   decisionHistoryApiClient,
-  type DecisionHistoryApiClient,
+  type DecisionHistoryCreateApiClient,
 } from "./api.ts";
 import type { DecisionDraft } from "./decision-draft.ts";
 
 export type DecisionRecorderStatus = "idle" | "saving" | "saved" | "error";
 export function useDecisionRecorder(
   draft: DecisionDraft | null,
-  apiClient: DecisionHistoryApiClient = decisionHistoryApiClient,
+  apiClient: DecisionHistoryCreateApiClient = decisionHistoryApiClient,
 ) {
   const {
     status: authStatus,

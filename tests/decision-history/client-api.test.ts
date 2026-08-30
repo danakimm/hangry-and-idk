@@ -133,4 +133,105 @@ describe("decision-history client API", () => {
     assert.equal(!network.ok && network.failure, "network");
     assert.equal(!abort.ok && abort.failure, "aborted");
   });
+  test("lists bounded decisions and sends private GET headers", async () => {
+    let captured: RequestInit | undefined;
+    const api = createDecisionHistoryApiClient(async (_url, init) => {
+      captured = init;
+      return Response.json({ decisions: [success.decision] });
+    });
+    assert.equal((await api.listDecisions()).ok, true);
+    assert.equal(captured?.method, "GET");
+    assert.equal(captured?.cache, "no-store");
+    assert.equal(
+      new Headers(captured?.headers).get("Accept"),
+      "application/json",
+    );
+  });
+
+  test("rejects malformed decisions and lists over ten", async () => {
+    for (const body of [
+      { decisions: [{ ...success.decision, createdAt: 8_640_000_000_000_001 }] },
+      { decisions: [{ ...success.decision, createdAt: 1.5 }] },
+      {
+        decisions: [
+          {
+            ...success.decision,
+            candidates: [success.decision.selected],
+          },
+        ],
+      },
+      {
+        decisions: [
+          {
+            ...success.decision,
+            source: {
+              type: "temporary",
+              menuSetId: "set-1",
+              menuSetName: null,
+            },
+          },
+        ],
+      },
+      { decisions: Array.from({ length: 11 }, () => success.decision) },
+    ]) {
+      const result = await createDecisionHistoryApiClient(async () =>
+        Response.json(body),
+      ).listDecisions();
+      assert.equal(!result.ok && result.failure, "parse");
+    }
+  });
+
+  test("sends encoded individual and collection DELETE requests", async () => {
+    const requests: Array<{ path: string; init?: RequestInit }> = [];
+    const api = createDecisionHistoryApiClient(async (path, init) => {
+      requests.push({ path: String(path), init });
+      return Response.json(
+        String(path).endsWith("history") ? { deletedCount: 2 } : { ok: true },
+      );
+    });
+    assert.equal((await api.deleteDecision("a/b ?")).ok, true);
+    assert.equal((await api.deleteAllDecisions()).ok, true);
+    assert.deepEqual(
+      requests.map(({ path, init }) => [path, init?.method]),
+      [
+        ["/api/decision-history/a%2Fb%20%3F", "DELETE"],
+        ["/api/decision-history", "DELETE"],
+      ],
+    );
+  });
+
+  test("rejects malformed individual and collection DELETE responses", async () => {
+    const invalidOne = await createDecisionHistoryApiClient(async () =>
+      Response.json({ ok: false }),
+    ).deleteDecision("id");
+    assert.equal(!invalidOne.ok && invalidOne.failure, "parse");
+
+    for (const deletedCount of [-1, 1.5, "1"]) {
+      const invalidAll = await createDecisionHistoryApiClient(async () =>
+        Response.json({ deletedCount }),
+      ).deleteAllDecisions();
+      assert.equal(!invalidAll.ok && invalidAll.failure, "parse");
+    }
+  });
+
+  test("list and delete methods preserve HTTP, network, and abort failures", async () => {
+    const http = await createDecisionHistoryApiClient(async () =>
+      Response.json(
+        { error: { code: "RATE_LIMITED", message: "slow down" } },
+        { status: 429 },
+      ),
+    ).listDecisions();
+    const network = await createDecisionHistoryApiClient(async () => {
+      throw new TypeError("offline");
+    }).deleteAllDecisions();
+    const controller = new AbortController();
+    controller.abort();
+    const abort = await createDecisionHistoryApiClient(async () => {
+      throw new DOMException("abort", "AbortError");
+    }).deleteDecision("id", controller.signal);
+
+    assert.equal(!http.ok && http.failure, "http");
+    assert.equal(!network.ok && network.failure, "network");
+    assert.equal(!abort.ok && abort.failure, "aborted");
+  });
 });

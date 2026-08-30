@@ -8,7 +8,7 @@ import {
   type AuthContextValue,
 } from "../../features/auth/client/context.ts";
 import { useDecisionRecorder } from "../../features/decision-history/client/useDecisionRecorder.ts";
-import type { DecisionHistoryApiClient } from "../../features/decision-history/client/api.ts";
+import type { DecisionHistoryCreateApiClient } from "../../features/decision-history/client/api.ts";
 import type { DecisionDraft } from "../../features/decision-history/client/decision-draft.ts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
@@ -38,7 +38,7 @@ function Harness({
   api,
   current,
 }: {
-  api: DecisionHistoryApiClient;
+  api: DecisionHistoryCreateApiClient;
   current: DecisionDraft | null;
 }) {
   const value = useDecisionRecorder(current, api);
@@ -83,7 +83,7 @@ function response() {
   };
 }
 async function mount(
-  api: DecisionHistoryApiClient,
+  api: DecisionHistoryCreateApiClient,
   value = auth(),
   current = draft,
 ) {
@@ -111,7 +111,7 @@ test("recorder does not request when disabled or anonymous", async () => {
       calls++;
       return response();
     },
-  } as DecisionHistoryApiClient;
+  } as DecisionHistoryCreateApiClient;
   await mount(api, auth(false));
   await act(async () => {
     await latest?.save();
@@ -134,7 +134,7 @@ test("recorder prevents duplicate and post-success saves", async () => {
       await pending;
       return response();
     },
-  } as DecisionHistoryApiClient;
+  } as DecisionHistoryCreateApiClient;
   await mount(api);
   await act(async () => {
     void latest?.save();
@@ -188,7 +188,7 @@ test("failure exposes an error and a new draft aborts and ignores an old respons
     resolveFirst = resolve;
   });
   let calls = 0;
-  const api: DecisionHistoryApiClient = {
+  const api: DecisionHistoryCreateApiClient = {
     async createDecision(_input, signal) {
       calls += 1;
       if (calls === 1) {
@@ -232,7 +232,7 @@ test("failure exposes an error and a new draft aborts and ignores an old respons
 test("logout cleanup aborts an in-flight request and resets recorder state", async () => {
   let logoutCleanup: (() => void) | null = null;
   let signal: AbortSignal | undefined;
-  const api: DecisionHistoryApiClient = {
+  const api: DecisionHistoryCreateApiClient = {
     createDecision(_input, requestSignal) {
       signal = requestSignal;
       return new Promise(() => {});

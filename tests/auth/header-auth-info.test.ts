@@ -166,6 +166,7 @@ test("decision-history trigger is feature-gated and cannot become a dead click",
           opens += 1;
         },
       }),
+      { status: "authenticated" },
     ),
   );
   const activeTrigger = view.getByRole("button", {

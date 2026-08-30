@@ -1,20 +1,25 @@
 "use client";
 
+import type { RefObject } from "react";
 import { useAuth } from "../../auth/client/AuthProvider.tsx";
 
 type DecisionHistoryTriggerProps = {
-  /** Reserved for the decision-history drawer introduced in the next work unit. */
   onOpen?: () => void;
-  /** Defaults to disabled until a drawer is connected. */
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+  open?: boolean;
+  /** Kept for callers built before the drawer was connected. */
   disabled?: boolean;
 };
 
 export default function DecisionHistoryTrigger({
   onOpen,
-  disabled = true,
+  buttonRef,
+  open = false,
+  disabled = false,
 }: DecisionHistoryTriggerProps) {
-  const { decisionHistoryEnabled } = useAuth();
-  const isDisabled = disabled || !onOpen;
+  const { decisionHistoryEnabled, status } = useAuth();
+  const isDisabled =
+    disabled || status !== "authenticated" || !onOpen;
 
   if (!decisionHistoryEnabled) return null;
 
@@ -23,6 +28,10 @@ export default function DecisionHistoryTrigger({
       type="button"
       className="decision-history-trigger"
       aria-label="결정 기록 열기"
+      aria-controls="decision-history-drawer"
+      aria-expanded={open}
+      title={isDisabled ? "로그인 후 결정 기록을 볼 수 있습니다." : undefined}
+      ref={buttonRef}
       disabled={isDisabled}
       onClick={() => {
         if (!isDisabled) onOpen();
