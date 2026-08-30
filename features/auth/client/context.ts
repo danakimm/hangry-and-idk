@@ -9,6 +9,7 @@ export type AuthContextValue = {
   user: User | null;
   status: AuthStatus;
   menuSetsEnabled: boolean;
+  decisionHistoryEnabled: boolean;
   interactiveLoginVersion: number;
   login: () => Promise<void>;
   logout: () => Promise<void>;

@@ -26,5 +26,7 @@ export const customMenuEmojis = [
 
 export const MIN_MENUS = 2;
 export const MAX_MENUS = 10;
+export const MENU_ITEM_NAME_MIN_LENGTH = 1;
+export const MENU_ITEM_NAME_MAX_LENGTH = 12;
 export const SPIN_DURATION_MS = 4100;
 export const LOCATION_TIMEOUT_MS = 8000;

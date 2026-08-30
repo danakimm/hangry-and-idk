@@ -5,12 +5,17 @@ import { parseRestaurantSearchResponse } from "@/features/restaurants/client/api
 import type { Restaurant } from "@/features/restaurants/shared/contract";
 import type { Coordinates } from "@/features/restaurants/client/types";
 import type { MenuItem } from "@/features/roulette/shared/contract";
-import { LOCATION_TIMEOUT_MS, palette } from "@/features/roulette/shared/constants";
+import {
+  LOCATION_TIMEOUT_MS,
+  palette,
+} from "@/features/roulette/shared/constants";
 import MenuEditor from "@/features/roulette/client/MenuEditor";
 import RouletteWheel from "@/features/roulette/client/RouletteWheel";
 import type { RouletteWheelHandle } from "@/features/roulette/client/RouletteWheel";
 import RouletteResult from "@/features/roulette/client/RouletteResult";
 import UserMenu from "@/features/auth/client/UserMenu";
+import DecisionHistoryPanel from "@/features/decision-history/client/DecisionHistoryPanel";
+import DecisionRecorder from "@/features/decision-history/client/DecisionRecorder";
 import { useMenuState } from "@/features/roulette/client/useMenuState";
 import { useAuth } from "@/features/auth/client/AuthProvider";
 import { useMenuSets } from "@/features/menu-sets/client/hooks";
@@ -21,17 +26,26 @@ import MenuSetInfoTooltip from "@/features/menu-sets/client/MenuSetInfoTooltip";
 import MenuSetCreateDialog from "@/features/menu-sets/client/MenuSetCreateDialog";
 import type { MenuSetItemRequest } from "@/features/menu-sets/shared/contract";
 import { MENU_SET_NAME_MAX_LENGTH } from "@/features/menu-sets/shared/constants";
+import {
+  createDecisionDraft,
+  type DecisionDraft,
+} from "@/features/decision-history/client/decision-draft";
 
 type ActiveMenuSource = "anonymous" | "menu-set";
 
 export default function Home() {
   const anonymousMenuState = useMenuState();
-  const { status, interactiveLoginVersion, onLogoutCleanup } = useAuth();
+  const {
+    status,
+    interactiveLoginVersion,
+    onLogoutCleanup,
+  } = useAuth();
   const isAuthenticated = status === "authenticated";
 
   const menuSets = useMenuSets();
 
-  const [activeMenuSource, setActiveMenuSource] = useState<ActiveMenuSource>("anonymous");
+  const [activeMenuSource, setActiveMenuSource] =
+    useState<ActiveMenuSource>("anonymous");
   const [rouletteResetKey, setRouletteResetKey] = useState(0);
   const [showFirstLoginPrompt, setShowFirstLoginPrompt] = useState(false);
   const [firstLoginName, setFirstLoginName] = useState("");
@@ -51,6 +65,11 @@ export default function Home() {
       : anonymousMenuState.menus;
 
   const [selected, setSelected] = useState<MenuItem | null>(null);
+  const [decisionDraft, setDecisionDraft] = useState<DecisionDraft | null>(
+    null,
+  );
+  const [decisionHistoryRefreshToken, setDecisionHistoryRefreshToken] =
+    useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<
@@ -58,7 +77,13 @@ export default function Home() {
   >("idle");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [restaurantStatus, setRestaurantStatus] = useState<
-    "idle" | "loading" | "ready" | "missing-key" | "unauthorized" | "rate-limited" | "error"
+    | "idle"
+    | "loading"
+    | "ready"
+    | "missing-key"
+    | "unauthorized"
+    | "rate-limited"
+    | "error"
   >("idle");
   const [restaurantMessage, setRestaurantMessage] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
@@ -80,7 +105,11 @@ export default function Home() {
   }, [interactiveLoginVersion, menuSets.enabled]);
 
   const confirmDiscardDraft = useCallback(() => {
-    if (menuSets.saveStatus === "dirty" || menuSets.saveStatus === "offline" || menuSets.saveStatus === "conflict") {
+    if (
+      menuSets.saveStatus === "dirty" ||
+      menuSets.saveStatus === "offline" ||
+      menuSets.saveStatus === "conflict"
+    ) {
       return confirm("저장되지 않은 변경 사항이 있습니다. 계속하시겠습니까?");
     }
     return true;
@@ -88,18 +117,22 @@ export default function Home() {
 
   const handleFirstLoginSaveAsNew = useCallback(async () => {
     if (!firstLoginName.trim()) return;
-    const items: MenuSetItemRequest[] = anonymousMenuState.menus.map((menu) => ({
-      id: null,
-      name: menu.name,
-      emoji: menu.emoji,
-      color: menu.color,
-    }));
+    const items: MenuSetItemRequest[] = anonymousMenuState.menus.map(
+      (menu) => ({
+        id: null,
+        name: menu.name,
+        emoji: menu.emoji,
+        color: menu.color,
+      }),
+    );
     const created = await menuSets.createNew(firstLoginName.trim(), items);
     if (!created) return;
     setActiveMenuSource("menu-set");
     setShowFirstLoginPrompt(false);
     setFirstLoginName("");
     setRouletteResetKey((key) => key + 1);
+    setSelected(null);
+    setDecisionDraft(null);
   }, [firstLoginName, anonymousMenuState.menus, menuSets]);
 
   const handleFirstLoginLoadDefault = useCallback(() => {
@@ -109,6 +142,8 @@ export default function Home() {
     setActiveMenuSource("menu-set");
     setShowFirstLoginPrompt(false);
     setRouletteResetKey((key) => key + 1);
+    setSelected(null);
+    setDecisionDraft(null);
   }, [menuSets]);
 
   const handleFirstLoginKeepAnonymous = useCallback(() => {
@@ -123,20 +158,25 @@ export default function Home() {
     setRestaurantMessage("");
   }, []);
 
-  useEffect(() => onLogoutCleanup(() => {
-    setActiveMenuSource("anonymous");
-    setShowFirstLoginPrompt(false);
-    setFirstLoginName("");
-    setIsNewMenuSetFormOpen(false);
-    setIsMenuSetEditing(false);
-    setNewMenuSetName("");
-    setSelected(null);
-    setIsSpinning(false);
-    setCoordinates(null);
-    setLocationStatus("idle");
-    wheelRef.current?.resetRotation();
-    clearRestaurantSearch();
-  }), [onLogoutCleanup, clearRestaurantSearch]);
+  useEffect(
+    () =>
+      onLogoutCleanup(() => {
+        setActiveMenuSource("anonymous");
+        setShowFirstLoginPrompt(false);
+        setFirstLoginName("");
+        setIsNewMenuSetFormOpen(false);
+        setIsMenuSetEditing(false);
+        setNewMenuSetName("");
+        setSelected(null);
+        setDecisionDraft(null);
+        setIsSpinning(false);
+        setCoordinates(null);
+        setLocationStatus("idle");
+        wheelRef.current?.resetRotation();
+        clearRestaurantSearch();
+      }),
+    [onLogoutCleanup, clearRestaurantSearch],
+  );
 
   const searchRestaurants = useCallback(
     async (
@@ -182,19 +222,44 @@ export default function Home() {
 
   const handleSpinStart = useCallback(() => {
     setSelected(null);
+    setDecisionDraft(null);
     setCoordinates(null);
     setLocationStatus("idle");
     clearRestaurantSearch();
     setIsSpinning(true);
   }, [clearRestaurantSearch]);
 
-  const handleSpinComplete = useCallback((item: MenuItem) => {
-    setSelected(item);
-    setIsSpinning(false);
-    window.setTimeout(() => {
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }, 80);
-  }, []);
+  const handleSpinComplete = useCallback(
+    (item: MenuItem) => {
+      setSelected(item);
+      setDecisionDraft(
+        createDecisionDraft(
+          item,
+          rouletteMenus,
+          activeMenuSource === "menu-set" && menuSets.currentMenuSet
+            ? {
+                type: "menu-set",
+                menuSetId: menuSets.currentMenuSet.id,
+                menuSetName: menuSets.draftName,
+              }
+            : { type: "temporary", menuSetId: null, menuSetName: null },
+        ),
+      );
+      setIsSpinning(false);
+      window.setTimeout(() => {
+        resultRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      }, 80);
+    },
+    [
+      activeMenuSource,
+      menuSets.currentMenuSet,
+      menuSets.draftName,
+      rouletteMenus,
+    ],
+  );
 
   const handleAddMenu = useCallback(
     (name: string, emoji: string) => {
@@ -212,6 +277,7 @@ export default function Home() {
         anonymousMenuState.addMenu(name, emoji);
       }
       setSelected(null);
+      setDecisionDraft(null);
       clearRestaurantSearch();
     },
     [activeMenuSource, menuSets, anonymousMenuState, clearRestaurantSearch],
@@ -231,6 +297,7 @@ export default function Home() {
         anonymousMenuState.removeMenu(id);
       }
       setSelected(null);
+      setDecisionDraft(null);
       wheelRef.current?.resetRotation();
       clearRestaurantSearch();
     },
@@ -252,6 +319,7 @@ export default function Home() {
       anonymousMenuState.resetMenus();
     }
     setSelected(null);
+    setDecisionDraft(null);
     setCoordinates(null);
     setLocationStatus("idle");
     wheelRef.current?.resetRotation();
@@ -295,23 +363,32 @@ export default function Home() {
         if (restaurantRequestIdRef.current !== requestId) return;
         setLocationStatus("denied");
       },
-      { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT_MS, maximumAge: 300000 },
+      {
+        enableHighAccuracy: true,
+        timeout: LOCATION_TIMEOUT_MS,
+        maximumAge: 300000,
+      },
     );
   }, [selected, coordinates, searchRestaurants]);
 
-  const handleMenuSetSelect = useCallback((id: string) => {
-    if (isBusy) return;
-    if (!confirmDiscardDraft()) return;
-    if (!menuSets.selectMenuSet(id)) return;
-    setActiveMenuSource("menu-set");
-    setIsMenuSetEditing(false);
-    setRouletteResetKey((key) => key + 1);
-    setSelected(null);
-    clearRestaurantSearch();
-  }, [menuSets, clearRestaurantSearch, isBusy, confirmDiscardDraft]);
+  const handleMenuSetSelect = useCallback(
+    (id: string) => {
+      if (isBusy) return;
+      if (!confirmDiscardDraft()) return;
+      if (!menuSets.selectMenuSet(id)) return;
+      setActiveMenuSource("menu-set");
+      setIsMenuSetEditing(false);
+      setRouletteResetKey((key) => key + 1);
+      setSelected(null);
+      setDecisionDraft(null);
+      clearRestaurantSearch();
+    },
+    [menuSets, clearRestaurantSearch, isBusy, confirmDiscardDraft],
+  );
 
   const handleMenuSetCreateNew = useCallback(async () => {
-    if (isBusy || menuSets.saveStatus === "conflict" || !newMenuSetName.trim()) return;
+    if (isBusy || menuSets.saveStatus === "conflict" || !newMenuSetName.trim())
+      return;
     if (activeMenuSource === "menu-set" && !confirmDiscardDraft()) return;
     const items: MenuSetItemRequest[] = rouletteMenus.map((menu) => ({
       id: null,
@@ -326,6 +403,8 @@ export default function Home() {
     setIsNewMenuSetFormOpen(false);
     setNewMenuSetName("");
     setRouletteResetKey((key) => key + 1);
+    setSelected(null);
+    setDecisionDraft(null);
   }, [
     activeMenuSource,
     confirmDiscardDraft,
@@ -339,6 +418,7 @@ export default function Home() {
     (name: string, items: MenuSetItemRequest[]) => {
       menuSets.updateDraft(name, items);
       setSelected(null);
+      setDecisionDraft(null);
       clearRestaurantSearch();
     },
     [menuSets, clearRestaurantSearch],
@@ -374,9 +454,12 @@ export default function Home() {
 
   const handleMenuSetArchive = useCallback(() => {
     if (isBusy || menuSets.saveStatus === "conflict") return;
-    if (!confirm(
-      "이 메뉴판을 삭제할까요? 현재는 다시 불러올 수 없지만, 메뉴는 룰렛에 그대로 남습니다.",
-    )) return;
+    if (
+      !confirm(
+        "이 메뉴판을 삭제할까요? 현재는 다시 불러올 수 없지만, 메뉴는 룰렛에 그대로 남습니다.",
+      )
+    )
+      return;
     if (!confirmDiscardDraft()) return;
     const snapshot = menuSets.draftItems.map((item) => ({
       id: item.id ?? crypto.randomUUID(),
@@ -390,6 +473,7 @@ export default function Home() {
         setActiveMenuSource("anonymous");
         setIsMenuSetEditing(false);
         setSelected(null);
+        setDecisionDraft(null);
         setCoordinates(null);
         setLocationStatus("idle");
         clearRestaurantSearch();
@@ -416,20 +500,26 @@ export default function Home() {
     setIsMenuSetEditing(false);
     setRouletteResetKey((key) => key + 1);
     setSelected(null);
+    setDecisionDraft(null);
     clearRestaurantSearch();
   }, [isBusy, confirmDiscardDraft, clearRestaurantSearch, menuSets]);
 
   return (
     <main>
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="오늘 뭐 먹지 홈">
-          <span className="brand-mark" aria-hidden="true">?</span>
-          <span>오늘 뭐 먹지?</span>
-        </a>
-        <UserMenu />
-        <div className="header-note">
-          <span className="status-dot" aria-hidden="true" />
-          결정 장애 구조대, 영업 중
+        <div className="header-brand">
+          <a className="brand" href="#top" aria-label="오늘 뭐 먹지 홈">
+            <span className="brand-mark" aria-hidden="true">
+              ?
+            </span>
+            <span className="brand-text">오늘 뭐 먹지?</span>
+          </a>
+        </div>
+        <div className="header-history">
+          <DecisionHistoryPanel refreshToken={decisionHistoryRefreshToken} />
+        </div>
+        <div className="header-user">
+          <UserMenu />
         </div>
       </header>
 
@@ -478,13 +568,19 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleFirstLoginLoadDefault}
-                  disabled={!menuSets.menuSets.some((item) => item.isDefault) || isBusy}
+                  disabled={
+                    !menuSets.menuSets.some((item) => item.isDefault) || isBusy
+                  }
                 >
                   대표 메뉴판 불러오기
                 </button>
               </div>
               <div className="prompt-option">
-                <button type="button" onClick={handleFirstLoginKeepAnonymous} disabled={isBusy}>
+                <button
+                  type="button"
+                  onClick={handleFirstLoginKeepAnonymous}
+                  disabled={isBusy}
+                >
                   저장하지 않고 계속 사용
                 </button>
               </div>
@@ -521,7 +617,7 @@ export default function Home() {
                   menuSets={menuSets.menuSets}
                   currentId={
                     activeMenuSource === "menu-set"
-                      ? menuSets.currentMenuSet?.id ?? null
+                      ? (menuSets.currentMenuSet?.id ?? null)
                       : null
                   }
                   isLoading={menuSets.isLoading}
@@ -612,6 +708,12 @@ export default function Home() {
         restaurantStatus={restaurantStatus}
         restaurantMessage={restaurantMessage}
         onRequestLocation={requestLocation}
+        action={
+          <DecisionRecorder
+            draft={decisionDraft}
+            onSaved={() => setDecisionHistoryRefreshToken((token) => token + 1)}
+          />
+        }
       />
 
       <footer>
