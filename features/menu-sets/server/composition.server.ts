@@ -10,6 +10,7 @@ import { createMenuSetRepository } from "./repository.server.ts";
 import { createMenuSetService } from "./service.server.ts";
 import type { MenuSetService } from "./service.server.ts";
 import { firebaseUidToRateLimitKey } from "../../auth/server/rate-limit-key.server.ts";
+import { readJsonBody } from "../../../server/http/body.server.ts";
 
 const RATE_LIMIT_RETRY_AFTER = 60;
 const MAX_BODY_BYTES = 50_000;
@@ -143,48 +144,5 @@ export function serviceErrorToHttp(code: string): number {
 }
 
 export async function parseBody<T>(request: Request): Promise<T | null> {
-  const contentLength = request.headers.get("Content-Length");
-  if (contentLength !== null) {
-    const declaredBytes = Number(contentLength);
-    if (
-      !Number.isSafeInteger(declaredBytes) ||
-      declaredBytes < 0 ||
-      declaredBytes > MAX_BODY_BYTES
-    ) {
-      return null;
-    }
-  }
-
-  if (!request.body) return null;
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_BODY_BYTES) {
-        await reader.cancel();
-        return null;
-      }
-      chunks.push(value);
-    }
-
-    const body = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      body.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(body);
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  } finally {
-    reader.releaseLock();
-  }
+  return readJsonBody<T>(request, MAX_BODY_BYTES);
 }
