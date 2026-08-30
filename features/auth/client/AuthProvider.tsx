@@ -23,9 +23,11 @@ export type { AuthContextValue, AuthStatus } from "./context.ts";
 export function AuthProvider({
   children,
   menuSetsEnabled = false,
+  decisionHistoryEnabled = false,
 }: {
   children: ReactNode;
   menuSetsEnabled?: boolean;
+  decisionHistoryEnabled?: boolean;
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
@@ -91,6 +93,7 @@ export function AuthProvider({
       user,
       status,
       menuSetsEnabled,
+      decisionHistoryEnabled,
       interactiveLoginVersion,
       login,
       logout,
@@ -101,6 +104,7 @@ export function AuthProvider({
       user,
       status,
       menuSetsEnabled,
+      decisionHistoryEnabled,
       interactiveLoginVersion,
       login,
       logout,

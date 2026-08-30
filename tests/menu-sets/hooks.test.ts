@@ -108,6 +108,7 @@ function authValue(
     user: { email: "user@example.com", name: "User" },
     status: "authenticated",
     menuSetsEnabled: enabled,
+    decisionHistoryEnabled: false,
     interactiveLoginVersion: 0,
     async login() {},
     async logout() {},

@@ -22,11 +22,14 @@ body {
   margin: 0;
   background-color: var(--paper);
   color: var(--ink);
-  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family:
+    var(--font-geist-sans), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   background-image:
     radial-gradient(rgba(23, 33, 29, 0.055) 0.7px, transparent 0.7px),
     linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.2));
-  background-size: 5px 5px, 100% 100%;
+  background-size:
+    5px 5px,
+    100% 100%;
 }
 
 button,
@@ -170,7 +173,9 @@ main {
   flex-direction: column;
   align-items: center;
   background-color: var(--paper-light);
-  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 30px 30px;
 }
 
@@ -303,7 +308,9 @@ main {
   letter-spacing: -0.03em;
   cursor: pointer;
   box-shadow: 5px 5px 0 var(--ink);
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .spin-button:hover:not(:disabled) {
@@ -720,10 +727,22 @@ main {
   background: var(--paper);
 }
 
-.top-left { left: -11px; top: -11px; }
-.top-right { right: -11px; top: -11px; }
-.bottom-left { left: -11px; bottom: -11px; }
-.bottom-right { right: -11px; bottom: -11px; }
+.top-left {
+  left: -11px;
+  top: -11px;
+}
+.top-right {
+  right: -11px;
+  top: -11px;
+}
+.bottom-left {
+  left: -11px;
+  bottom: -11px;
+}
+.bottom-right {
+  right: -11px;
+  bottom: -11px;
+}
 
 .result-intro {
   margin-bottom: 28px;
@@ -951,6 +970,38 @@ main {
   padding: 26px 30px;
 }
 
+.decision-recorder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px dashed rgba(23, 33, 29, 0.35);
+}
+
+.decision-recorder button {
+  min-width: 132px;
+  padding: 10px 13px;
+  border: 2px solid var(--ink);
+  background: var(--green);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.decision-recorder button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+.decision-recorder small {
+  color: rgba(23, 33, 29, 0.7);
+  font-size: 11px;
+}
+
 .location-row {
   display: flex;
   align-items: center;
@@ -1169,8 +1220,14 @@ main {
 }
 
 @keyframes restaurant-pulse {
-  from { opacity: 0.35; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1.15); }
+  from {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
 }
 
 footer {
@@ -1400,7 +1457,9 @@ footer a {
   font-weight: 800;
   cursor: pointer;
   box-shadow: 3px 3px 0 var(--ink);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .login-button:hover:not(:disabled) {
@@ -1835,5 +1894,4 @@ footer a {
   .menu-set-create-dialog form {
     padding: 22px 18px;
   }
-
 }

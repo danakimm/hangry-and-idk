@@ -51,6 +51,9 @@ export default function RootLayout({
 }>) {
   const runtimeEnv = env as AppRuntimeEnv;
   const menuSetsEnabled = isFeatureEnabled(runtimeEnv.FEATURE_MENU_SETS);
+  const decisionHistoryEnabled = isFeatureEnabled(
+    runtimeEnv.FEATURE_DECISION_HISTORY,
+  );
 
   return (
     <html lang="ko">
@@ -58,7 +61,12 @@ export default function RootLayout({
         <link rel="icon" href="/icon.png" type="image/png" sizes="128x128" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <AuthProvider menuSetsEnabled={menuSetsEnabled}>{children}</AuthProvider>
+        <AuthProvider
+          menuSetsEnabled={menuSetsEnabled}
+          decisionHistoryEnabled={decisionHistoryEnabled}
+        >
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
