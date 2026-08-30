@@ -1,0 +1,3 @@
+export const DECISION_HISTORY_LIMIT = 10;
+export const CLIENT_REQUEST_ID_MAX_LENGTH = 128;
+export const MENU_SET_ID_MAX_LENGTH = 128;
