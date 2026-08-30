@@ -54,68 +54,49 @@ function props(overrides: Record<string, unknown> = {}) {
     restaurantStatus: "idle" as const,
     restaurantMessage: "",
     onRequestLocation: () => {},
-    decisionEnabled: true,
-    decisionStatus: "idle" as const,
-    decisionError: null,
-    authStatus: "authenticated" as const,
-    onSaveDecision: () => {},
+    action: null,
     ...overrides,
   };
 }
 afterEach(cleanup);
 
-test("recorder UI hides for disabled/loading and guides anonymous users", () => {
+test("result renders an optional feature-owned action slot", () => {
   const { rerender } = render(
-    createElement(RouletteResult, props({ decisionEnabled: false })),
+    createElement(RouletteResult, props()),
   );
   assert.equal(document.body.textContent?.includes("이 메뉴로 결정"), false);
-  rerender(createElement(RouletteResult, props({ authStatus: "loading" })));
-  assert.equal(document.body.textContent?.includes("이 메뉴로 결정"), false);
-  rerender(createElement(RouletteResult, props({ authStatus: "anonymous" })));
-  assert.ok(
-    document.body.textContent?.includes("로그인하면 결정을 기록할 수 있어요"),
-  );
+  rerender(createElement(RouletteResult, props({
+    action: createElement("button", { type: "button" }, "이 메뉴로 결정"),
+  })));
+  assert.ok(document.body.textContent?.includes("이 메뉴로 결정"));
 });
 
-test("recorder state buttons and location action remain independent", async () => {
-  let saves = 0;
+test("action slot and location action remain independent", async () => {
+  let actions = 0;
   let locations = 0;
   const { rerender } = render(
     createElement(
       RouletteResult,
       props({
-        onSaveDecision: () => {
-          saves += 1;
-        },
-        onRequestLocation: () => {
-          locations += 1;
-        },
+        action: createElement("button", {
+          type: "button",
+          className: "decision-recorder-action",
+          onClick: () => { actions += 1; },
+        }, "기록"),
+        onRequestLocation: () => { locations += 1; },
       }),
     ),
   );
-  fireEvent.click(document.querySelector(".decision-recorder button")!);
+  fireEvent.click(document.querySelector(".decision-recorder-action")!);
   fireEvent.click(document.querySelector(".location-row button")!);
-  assert.equal(saves, 1);
+  assert.equal(actions, 1);
   assert.equal(locations, 1);
-  rerender(createElement(RouletteResult, props({ decisionStatus: "saving" })));
-  assert.equal(
-    (document.querySelector(".decision-recorder button") as HTMLButtonElement)
-      .disabled,
-    true,
-  );
-  rerender(createElement(RouletteResult, props({ decisionStatus: "saved" })));
-  assert.equal(
-    (document.querySelector(".decision-recorder button") as HTMLButtonElement)
-      .disabled,
-    true,
-  );
   rerender(
     createElement(
       RouletteResult,
-      props({ decisionStatus: "error", decisionError: "offline" }),
+      props({ action: createElement("small", { role: "alert" }, "offline") }),
     ),
   );
-  assert.ok(document.body.textContent?.includes("다시 기록하기"));
   assert.ok(document.querySelector("[role=alert]"));
   await act(async () => {});
 });

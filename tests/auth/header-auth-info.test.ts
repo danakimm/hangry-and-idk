@@ -145,12 +145,19 @@ test("login and logout callbacks remain wired", async () => {
 });
 
 test("decision-history trigger is feature-gated and cannot become a dead click", () => {
-  const view = render(withAuth(createElement(DecisionHistoryTrigger), {
+  const buttonRef = { current: null };
+  const view = render(withAuth(createElement(DecisionHistoryTrigger, {
+    onOpen: () => {},
+    buttonRef,
+  }), {
     decisionHistoryEnabled: false,
   }));
   assert.equal(view.queryByRole("button", { name: "결정 기록 열기" }), null);
   view.rerender(
-    withAuth(createElement(DecisionHistoryTrigger, { disabled: false })),
+    withAuth(createElement(DecisionHistoryTrigger, {
+      onOpen: () => {},
+      buttonRef,
+    })),
   );
   const noHandlerTrigger = view.getByRole("button", {
     name: "결정 기록 열기",
@@ -161,10 +168,10 @@ test("decision-history trigger is feature-gated and cannot become a dead click",
   view.rerender(
     withAuth(
       createElement(DecisionHistoryTrigger, {
-        disabled: false,
         onOpen: () => {
           opens += 1;
         },
+        buttonRef,
       }),
       { status: "authenticated" },
     ),

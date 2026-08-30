@@ -8,6 +8,11 @@ import {
   MENU_SET_ITEMS_MAX,
   MENU_SET_MAX_ACTIVE,
 } from "../shared/constants.ts";
+import {
+  isValidMenuColor,
+  isValidMenuEmoji,
+  normalizeMenuName,
+} from "../../roulette/shared/menu-snapshot-policy.ts";
 
 export {
   MENU_SET_NAME_MIN_LENGTH,
@@ -22,7 +27,7 @@ export {
 export type ValidationError = { field: string; message: string };
 
 export function normalizeName(name: string): string {
-  return name.normalize("NFC").trim().replace(/\s+/g, " ");
+  return normalizeMenuName(name);
 }
 
 export function validateMenuSetName(name: string): ValidationError | null {
@@ -88,14 +93,11 @@ export function validateItems(
 }
 
 export function validateColor(color: string): boolean {
-  return /^#[0-9a-fA-F]{6}$/.test(color);
+  return isValidMenuColor(color);
 }
 
-const EMOJI_PATTERN = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-
 export function validateEmoji(emoji: string): boolean {
-  if (emoji.length === 0 || emoji.length > 8) return false;
-  return EMOJI_PATTERN.test(emoji);
+  return isValidMenuEmoji(emoji);
 }
 
 export function validateVersion(version: unknown): version is number {

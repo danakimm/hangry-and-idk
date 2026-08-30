@@ -13,7 +13,7 @@ import {
   mapDecisionHistoryListToResponse,
   mapDecisionHistoryToResponse,
 } from "./mapper.server.ts";
-import { parseCreateDecisionCommand } from "./request.server.ts";
+import { validateAndNormalizeDecision } from "./validation.server.ts";
 
 const MAX_BODY_BYTES = 10_000;
 const privateResponse = (response: Response) => preventClientCaching(response);
@@ -53,11 +53,14 @@ export async function handleDecisionHistoryCreateRequest(
       isMutation: true,
     });
     if (!context.ok) return privateResponse(context.response);
-    const command = parseCreateDecisionCommand(
+    const parsed = validateAndNormalizeDecision(
       await readJsonBody<unknown>(request, MAX_BODY_BYTES),
     );
-    if (!command) return invalidRequest();
-    const result = await context.service.create(context.internalUserId, command);
+    if (!parsed.ok) return invalidRequest();
+    const result = await context.service.createValidated(
+      context.internalUserId,
+      parsed.command,
+    );
     return result.ok
       ? privateResponse(
           json(

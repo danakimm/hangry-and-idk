@@ -4,22 +4,18 @@ import type { RefObject } from "react";
 import { useAuth } from "../../auth/client/AuthProvider.tsx";
 
 type DecisionHistoryTriggerProps = {
-  onOpen?: () => void;
-  buttonRef?: RefObject<HTMLButtonElement | null>;
+  onOpen: () => void;
+  buttonRef: RefObject<HTMLButtonElement | null>;
   open?: boolean;
-  /** Kept for callers built before the drawer was connected. */
-  disabled?: boolean;
 };
 
 export default function DecisionHistoryTrigger({
   onOpen,
   buttonRef,
   open = false,
-  disabled = false,
 }: DecisionHistoryTriggerProps) {
   const { decisionHistoryEnabled, status } = useAuth();
-  const isDisabled =
-    disabled || status !== "authenticated" || !onOpen;
+  const isDisabled = status !== "authenticated";
 
   if (!decisionHistoryEnabled) return null;
 

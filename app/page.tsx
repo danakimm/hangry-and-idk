@@ -14,8 +14,8 @@ import RouletteWheel from "@/features/roulette/client/RouletteWheel";
 import type { RouletteWheelHandle } from "@/features/roulette/client/RouletteWheel";
 import RouletteResult from "@/features/roulette/client/RouletteResult";
 import UserMenu from "@/features/auth/client/UserMenu";
-import DecisionHistoryTrigger from "@/features/decision-history/client/DecisionHistoryTrigger";
-import DecisionHistoryDrawer from "@/features/decision-history/client/DecisionHistoryDrawer";
+import DecisionHistoryPanel from "@/features/decision-history/client/DecisionHistoryPanel";
+import DecisionRecorder from "@/features/decision-history/client/DecisionRecorder";
 import { useMenuState } from "@/features/roulette/client/useMenuState";
 import { useAuth } from "@/features/auth/client/AuthProvider";
 import { useMenuSets } from "@/features/menu-sets/client/hooks";
@@ -30,8 +30,6 @@ import {
   createDecisionDraft,
   type DecisionDraft,
 } from "@/features/decision-history/client/decision-draft";
-import { useDecisionRecorder } from "@/features/decision-history/client/useDecisionRecorder";
-import { useDecisionHistory } from "@/features/decision-history/client/useDecisionHistory";
 
 type ActiveMenuSource = "anonymous" | "menu-set";
 
@@ -41,7 +39,6 @@ export default function Home() {
     status,
     interactiveLoginVersion,
     onLogoutCleanup,
-    decisionHistoryEnabled,
   } = useAuth();
   const isAuthenticated = status === "authenticated";
 
@@ -71,25 +68,8 @@ export default function Home() {
   const [decisionDraft, setDecisionDraft] = useState<DecisionDraft | null>(
     null,
   );
-  const decisionRecorder = useDecisionRecorder(decisionDraft);
-  const [isDecisionHistoryOpen, setIsDecisionHistoryOpen] = useState(false);
   const [decisionHistoryRefreshToken, setDecisionHistoryRefreshToken] =
     useState(0);
-  const decisionHistoryTriggerRef = useRef<HTMLButtonElement>(null);
-  const openDecisionHistory = useCallback(
-    () => setIsDecisionHistoryOpen(true),
-    [],
-  );
-  const closeDecisionHistory = useCallback(
-    () => setIsDecisionHistoryOpen(false),
-    [],
-  );
-  const decisionHistory = useDecisionHistory({
-    open: isDecisionHistoryOpen,
-    refreshToken: decisionHistoryRefreshToken,
-    onLogout: closeDecisionHistory,
-  });
-  const previousDecisionStatus = useRef(decisionRecorder.status);
   const [isSpinning, setIsSpinning] = useState(false);
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [locationStatus, setLocationStatus] = useState<
@@ -109,16 +89,6 @@ export default function Home() {
   const resultRef = useRef<HTMLDivElement>(null);
   const wheelRef = useRef<RouletteWheelHandle>(null);
   const restaurantRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    if (
-      previousDecisionStatus.current !== "saved" &&
-      decisionRecorder.status === "saved"
-    ) {
-      setDecisionHistoryRefreshToken((token) => token + 1);
-    }
-    previousDecisionStatus.current = decisionRecorder.status;
-  }, [decisionRecorder.status]);
 
   const isBusy = menuSets.isLoading || menuSets.isMutating || isSpinning;
 
@@ -546,30 +516,12 @@ export default function Home() {
           </a>
         </div>
         <div className="header-history">
-          <DecisionHistoryTrigger
-            onOpen={openDecisionHistory}
-            open={isDecisionHistoryOpen}
-            buttonRef={decisionHistoryTriggerRef}
-          />
+          <DecisionHistoryPanel refreshToken={decisionHistoryRefreshToken} />
         </div>
         <div className="header-user">
           <UserMenu />
         </div>
       </header>
-      <DecisionHistoryDrawer
-        open={isDecisionHistoryOpen}
-        decisions={decisionHistory.decisions}
-        status={decisionHistory.status}
-        error={decisionHistory.error}
-        mutationError={decisionHistory.mutationError}
-        deletingId={decisionHistory.deletingId}
-        deletingAll={decisionHistory.deletingAll}
-        onClose={closeDecisionHistory}
-        onRetry={() => void decisionHistory.refresh()}
-        onDelete={decisionHistory.deleteDecision}
-        onDeleteAll={decisionHistory.deleteAll}
-        triggerRef={decisionHistoryTriggerRef}
-      />
 
       <section className="hero" id="top">
         <div>
@@ -756,11 +708,12 @@ export default function Home() {
         restaurantStatus={restaurantStatus}
         restaurantMessage={restaurantMessage}
         onRequestLocation={requestLocation}
-        decisionEnabled={decisionHistoryEnabled === true}
-        decisionStatus={decisionRecorder.status}
-        decisionError={decisionRecorder.error}
-        authStatus={status}
-        onSaveDecision={() => void decisionRecorder.save()}
+        action={
+          <DecisionRecorder
+            draft={decisionDraft}
+            onSaved={() => setDecisionHistoryRefreshToken((token) => token + 1)}
+          />
+        }
       />
 
       <footer>

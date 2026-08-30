@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DecisionHistoryResponse } from "../shared/contract.ts";
 import type { DecisionHistoryStatus } from "./useDecisionHistory.ts";
+import { DECISION_HISTORY_LIMIT } from "../shared/constants.ts";
 
 type Props = {
   open: boolean;
@@ -176,7 +177,7 @@ function OpenDecisionHistoryDrawer(props: Props) {
         <header>
           <div>
             <h2 id="decision-history-title">결정 기록</h2>
-            <p>최근 {props.decisions.length}/10</p>
+            <p>최근 {props.decisions.length}/{DECISION_HISTORY_LIMIT}</p>
           </div>
           <button
             ref={closeRef}

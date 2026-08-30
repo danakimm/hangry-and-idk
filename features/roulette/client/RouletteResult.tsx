@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, type ReactNode } from "react";
 import type { MenuItem } from "../shared/contract.ts";
 import type { Restaurant } from "../../restaurants/shared/contract.ts";
 import type { Coordinates } from "../../restaurants/client/types.ts";
@@ -25,11 +25,7 @@ type RouletteResultProps = {
   restaurantStatus: RestaurantStatus;
   restaurantMessage: string;
   onRequestLocation: () => void;
-  decisionEnabled: boolean;
-  decisionStatus: "idle" | "saving" | "saved" | "error";
-  decisionError: string | null;
-  authStatus: "loading" | "authenticated" | "anonymous";
-  onSaveDecision: () => void;
+  action?: ReactNode;
 };
 
 const RouletteResult = forwardRef<HTMLDivElement, RouletteResultProps>(
@@ -42,11 +38,7 @@ const RouletteResult = forwardRef<HTMLDivElement, RouletteResultProps>(
       restaurantStatus,
       restaurantMessage,
       onRequestLocation,
-      decisionEnabled,
-      decisionStatus,
-      decisionError,
-      authStatus,
-      onSaveDecision,
+      action,
     },
     ref,
   ) {
@@ -94,35 +86,7 @@ const RouletteResult = forwardRef<HTMLDivElement, RouletteResultProps>(
                 )}
               </div>
               <div className="map-search">
-                {decisionEnabled && authStatus !== "loading" && (
-                  <div className="decision-recorder">
-                    {authStatus === "authenticated" ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={onSaveDecision}
-                          disabled={
-                            decisionStatus === "saving" ||
-                            decisionStatus === "saved"
-                          }
-                        >
-                          {decisionStatus === "saving"
-                            ? "기록하는 중..."
-                            : decisionStatus === "saved"
-                              ? "결정 기록 완료 ✓"
-                              : decisionStatus === "error"
-                                ? "다시 기록하기"
-                                : "이 메뉴로 결정"}
-                        </button>
-                        {decisionError && (
-                          <small role="alert">{decisionError}</small>
-                        )}
-                      </>
-                    ) : (
-                      <small>로그인하면 결정을 기록할 수 있어요</small>
-                    )}
-                  </div>
-                )}
+                {action}
                 <div className="location-row">
                   <div>
                     <span className="pin-icon" aria-hidden="true">

@@ -8,14 +8,20 @@ import {
   MENU_SET_ID_MAX_LENGTH,
 } from "../shared/constants.ts";
 import {
-  MENU_SET_ITEMS_MAX,
-  MENU_SET_ITEMS_MIN,
-  normalizeName,
-  validateColor,
-  validateEmoji,
-  validateMenuItemName,
-  validateMenuSetName,
-} from "../../menu-sets/server/validation.server.ts";
+  MAX_MENUS,
+  MIN_MENUS,
+} from "../../roulette/shared/constants.ts";
+import {
+  isValidMenuCandidateCount,
+  isValidMenuColor,
+  isValidMenuEmoji,
+  isValidMenuItemName,
+  normalizeMenuName,
+} from "../../roulette/shared/menu-snapshot-policy.ts";
+import {
+  MENU_SET_NAME_MAX_LENGTH,
+  MENU_SET_NAME_MIN_LENGTH,
+} from "../../menu-sets/shared/constants.ts";
 
 export type DecisionValidationResult =
   | { ok: true; command: CreateDecisionCommand }
@@ -36,14 +42,14 @@ function normalizeMenu(value: unknown): DecisionMenuSnapshot | null {
   }
 
   const menu = {
-    name: normalizeName(value.name),
+    name: normalizeMenuName(value.name),
     emoji: value.emoji,
     color: value.color,
   };
   if (
-    validateMenuItemName(menu.name) ||
-    !validateEmoji(menu.emoji) ||
-    !validateColor(menu.color)
+    !isValidMenuItemName(menu.name) ||
+    !isValidMenuEmoji(menu.emoji) ||
+    !isValidMenuColor(menu.color)
   ) {
     return null;
   }
@@ -68,12 +74,16 @@ function normalizeSource(value: unknown): DecisionSourceSnapshot | null {
   }
   const menuSetId = value.menuSetId.trim();
   if (!menuSetId || menuSetId.length > MENU_SET_ID_MAX_LENGTH) return null;
-  if (validateMenuSetName(value.menuSetName)) return null;
+  const normalizedName = normalizeMenuName(value.menuSetName);
+  if (
+    normalizedName.length < MENU_SET_NAME_MIN_LENGTH ||
+    normalizedName.length > MENU_SET_NAME_MAX_LENGTH
+  ) return null;
 
   return {
     type: "menu-set",
     menuSetId,
-    menuSetName: normalizeName(value.menuSetName),
+    menuSetName: normalizedName,
   };
 }
 
@@ -93,12 +103,11 @@ export function validateAndNormalizeDecision(
 
   if (
     !Array.isArray(value.candidates) ||
-    value.candidates.length < MENU_SET_ITEMS_MIN ||
-    value.candidates.length > MENU_SET_ITEMS_MAX
+    !isValidMenuCandidateCount(value.candidates.length)
   ) {
     return {
       ok: false,
-      message: `후보 메뉴는 ${MENU_SET_ITEMS_MIN}~${MENU_SET_ITEMS_MAX}개여야 합니다.`,
+      message: `후보 메뉴는 ${MIN_MENUS}~${MAX_MENUS}개여야 합니다.`,
     };
   }
 

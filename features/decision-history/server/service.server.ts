@@ -20,6 +20,10 @@ export type DecisionHistoryServiceResult<T> =
 export type DecisionHistoryService = {
   create(
     ownerUserId: string,
+    command: unknown,
+  ): Promise<DecisionHistoryServiceResult<CreateDecisionResult>>;
+  createValidated(
+    ownerUserId: string,
     command: CreateDecisionCommand,
   ): Promise<DecisionHistoryServiceResult<CreateDecisionResult>>;
   list(
@@ -44,6 +48,25 @@ export function createDecisionHistoryService(deps: {
     ok: false as const,
     error: { code, message },
   });
+  const createValidated = async (
+    ownerUserId: string,
+    command: CreateDecisionCommand,
+  ): Promise<DecisionHistoryServiceResult<CreateDecisionResult>> => {
+    try {
+      const data = await repository.createOrGet({
+        id: idGenerator.uuid(),
+        ownerUserId,
+        clientRequestId: command.clientRequestId,
+        selected: command.selected,
+        candidates: command.candidates,
+        source: command.source,
+        createdAt: clock.nowSeconds(),
+      });
+      return { ok: true, data };
+    } catch {
+      return error("INTERNAL_ERROR", "결정 기록을 저장하지 못했습니다.");
+    }
+  };
 
   return {
     async create(ownerUserId, command) {
@@ -51,22 +74,10 @@ export function createDecisionHistoryService(deps: {
       if (!validation.ok) {
         return error("INVALID_DECISION_HISTORY", validation.message);
       }
-      const normalized = validation.command;
-      try {
-        const data = await repository.createOrGet({
-          id: idGenerator.uuid(),
-          ownerUserId,
-          clientRequestId: normalized.clientRequestId,
-          selected: normalized.selected,
-          candidates: normalized.candidates,
-          source: normalized.source,
-          createdAt: clock.nowSeconds(),
-        });
-        return { ok: true, data };
-      } catch {
-        return error("INTERNAL_ERROR", "결정 기록을 저장하지 못했습니다.");
-      }
+      return createValidated(ownerUserId, validation.command);
     },
+
+    createValidated,
 
     async list(ownerUserId) {
       try {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { DECISION_HISTORY_LIMIT } from "../../decision-history/shared/constants.ts";
 
 type LoginBenefitsInfoProps = {
   menuSetsEnabled: boolean;
@@ -17,7 +18,9 @@ export default function LoginBenefitsInfo({
   const popoverId = useId();
   const benefits = [
     menuSetsEnabled ? "메뉴판 저장 및 불러오기" : null,
-    decisionHistoryEnabled ? "최근 결정 기록 최대 10개 보관" : null,
+    decisionHistoryEnabled
+      ? `최근 결정 기록 최대 ${DECISION_HISTORY_LIMIT}개 보관`
+      : null,
   ].filter((benefit): benefit is string => benefit !== null);
   const hasBenefits = benefits.length > 0;
 

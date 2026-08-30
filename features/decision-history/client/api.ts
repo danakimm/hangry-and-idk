@@ -8,6 +8,8 @@ import type {
   DecisionHistoryListResponse,
   DecisionHistoryResponse,
 } from "../shared/contract.ts";
+import { DECISION_HISTORY_LIMIT } from "../shared/constants.ts";
+import { MAX_MENUS, MIN_MENUS } from "../../roulette/shared/constants.ts";
 
 export type DecisionHistoryClientFailure =
   | "http"
@@ -101,8 +103,8 @@ function validDecision(value: unknown): value is DecisionHistoryResponse {
     typeof value.id === "string" &&
     value.id.length > 0 &&
     validSnapshot(value.selected) &&
-    value.candidates.length >= 2 &&
-    value.candidates.length <= 10 &&
+    value.candidates.length >= MIN_MENUS &&
+    value.candidates.length <= MAX_MENUS &&
     value.candidates.every(validSnapshot) &&
     validSource &&
     typeof value.createdAt === "number" &&
@@ -122,7 +124,7 @@ const validCreate = (
 const validList = (value: unknown): value is DecisionHistoryListResponse =>
   isRecord(value) &&
   Array.isArray(value.decisions) &&
-  value.decisions.length <= 10 &&
+  value.decisions.length <= DECISION_HISTORY_LIMIT &&
   value.decisions.every(validDecision);
 
 const validDelete = (value: unknown): value is DecisionHistoryDeleteResponse =>
